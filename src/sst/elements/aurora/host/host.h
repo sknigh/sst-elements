@@ -31,16 +31,17 @@ namespace Aurora {
 class Host : public Hermes::OS 
 {
   public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         Host,
         "aurora",
         "host",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "",
-        ""
+        SST::Aurora::Host 
     )
 
-	Host(Component*, Params&);
+    Host(Component* comp, Params& params) : OS(comp,params) { assert(0); }
+    Host(ComponentId_t id, Params& params);
 	~Host() {}
 
 	int getRank()    { 

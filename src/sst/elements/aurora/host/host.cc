@@ -23,8 +23,8 @@
 using namespace SST;
 using namespace SST::Aurora;
 
-Host::Host( Component* owner, Params& params ) :
-	OS( owner ), m_rank(-1), m_nodeNum(-1), m_mallocAddr( 0x1000 )
+Host::Host( ComponentId_t owner, Params& params ) :
+	OS( owner, params ), m_rank(-1), m_nodeNum(-1), m_mallocAddr( 0x1000 )
 {
 	if ( params.find<bool>("print_all_params",false) ) {
         printf("Aurora::Host::Host()\n");
@@ -38,7 +38,7 @@ Host::Host( Component* owner, Params& params ) :
 
 	m_dbg.debug(CALL_INFO,1,2,"numNodes=%d\n",m_numNodes);
 
-	m_nicLink = owner->configureLink( params.find<std::string>("portName","nic"),
+	m_nicLink = configureLink( params.find<std::string>("portName","nic"),
             "1 ns", new Event::Handler<Host>(this,&Host::handleEvent) );
 	assert( m_nicLink );
 
