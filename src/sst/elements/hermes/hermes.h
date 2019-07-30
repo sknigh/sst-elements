@@ -31,6 +31,11 @@ namespace SST {
 
 namespace Hermes {
 
+struct ProcAddr {
+    int node;
+    int pid;
+};
+
 typedef std::function<void(int)> Callback;
 
 typedef uint64_t Vaddr;
