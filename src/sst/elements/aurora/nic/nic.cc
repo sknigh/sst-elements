@@ -59,7 +59,7 @@ Nic::Nic(ComponentId_t id, Params &params) :
     m_dbg.verbose(CALL_INFO,1,1,"id=%d input_buf_size=%s output_buf_size=%s link_bw=%s packetSize=%d\n", m_nodeId,
             input_buf_size.toString().c_str(), output_buf_size.toString().c_str(), link_bw.toString().c_str(), pktSize);
 
-    m_linkControl = (SimpleNetwork*)loadSubComponent( params.find<std::string>("module"), this, params);
+    m_linkControl = loadUserSubComponent<Interfaces::SimpleNetwork>( "rtrLink", ComponentInfo::SHARE_NONE, 0 );
     assert( m_linkControl );
 
 
