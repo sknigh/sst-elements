@@ -66,8 +66,13 @@ class EmberEP( EndPoint ):
             memory.addParam( "nid", nodeID )
             #memory.addParam( "verboseLevel", 1 )
 
-        loopBack = sst.Component("loopBack" + str(nodeID), "firefly.loopBack")
-        loopBack.addParam( "numCores", self.numCores )
+        useFirefly = False 
+        if self.driverParams['os.module'] == 'firefly.hades':   
+            useFirefly = True    
+
+        if useFirefly:
+            loopBack = sst.Component("loopBack" + str(nodeID), "firefly.loopBack")
+            loopBack.addParam( "numCores", self.numCores )
 
 
         # Create a motifLog only for one core of the desired node(s)
@@ -77,25 +82,28 @@ class EmberEP( EndPoint ):
         for x in xrange(self.numCores):
             ep = sst.Component("nic" + str(nodeID) + "core" + str(x) + "_EmberEP", "ember.EmberEngine")
 
-            os = ep.setSubComponent( "OS", "firefly.hades" )
+            os = ep.setSubComponent( "OS", self.driverParams['os.module'] )
             for key, value in self.driverParams.items():
                 if key.startswith("hermesParams."):
                     key = key[key.find('.')+1:] 
                     #print key, value
                     os.addParam( key,value)
 
-            virtNic = os.setSubComponent( "virtNic", "firefly.VirtNic" )
+            if useFirefly: 
+                virtNic = os.setSubComponent( "virtNic", "firefly.VirtNic" )
 
-            proto = os.setSubComponent( "proto", "firefly.CtrlMsgProto" )
-            process = proto.setSubComponent( "process", "firefly.ctrlMsg" )
+            if useFirefly: 
+                proto = os.setSubComponent( "proto", "firefly.CtrlMsgProto" )
+                process = proto.setSubComponent( "process", "firefly.ctrlMsg" )
 
             prefix = "hermesParams.ctrlMsg."
             for key, value in self.driverParams.items():
                 if key.startswith(prefix):
                     key = key[len(prefix):] 
                     #print key, value
-                    proto.addParam( key,value)
-                    process.addParam( key,value)
+                    if useFirefly:
+                        proto.addParam( key,value)
+                        process.addParam( key,value)
 
             ep.addParams(self.motifs)
             if built:
@@ -149,14 +157,17 @@ class EmberEP( EndPoint ):
             nicLink = sst.Link( "nic" + str(nodeID) + "core" + str(x) + "_Link"  )
             nicLink.setNoCut()
 
-            loopLink = sst.Link( "loop" + str(nodeID) + "core" + str(x) + "_Link"  )
-            loopLink.setNoCut() 
+            if useFirefly:
+                loopLink = sst.Link( "loop" + str(nodeID) + "core" + str(x) + "_Link"  )
+                loopLink.setNoCut() 
+                loopLink.connect( (process,'loop','1ns' ),(loopBack,'core'+str(x),'1ns'))
 
-            #ep.addLink(nicLink, "nic", self.nicParams["nic2host_lat"] )
-            #nic.addLink(nicLink, "core" + str(x), self.nicParams["nic2host_lat"] )
-            nicLink.connect( (virtNic,'nic','1ns' ),(nic,'core'+str(x),'1ns'))
 
-            loopLink.connect( (process,'loop','1ns' ),(loopBack,'core'+str(x),'1ns'))
+            if useFirefly:
+                nicLink.connect( (virtNic,'nic','1ns' ),(nic,'core'+str(x),'1ns'))
+            else:
+                nicToHostLink = sst.Link( "nicToHost" + str(nodeID) + "core" + str(x) + "_Link"  )
+                nicLink.connect( (os,'nic','1ns' ),(nic,'core'+str(x),'1ns'))
 
             if built:
                 memoryLink = sst.Link( "memory" + str(nodeID) + "core" + str(x) + "_Link"  )
