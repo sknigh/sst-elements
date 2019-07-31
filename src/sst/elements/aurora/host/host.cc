@@ -122,7 +122,7 @@ void Host::_componentSetup()
     }
 
     char buffer[100];
-    snprintf(buffer,100,"@t:%#x:%d:Hades::@p():@l ", m_nodeNum, m_rank);
+    snprintf(buffer,100,"@t:%#x:%d:Host::@p():@l ", m_nodeNum, m_rank);
     m_dbg.setPrefix(buffer);
 }
 
