@@ -23,7 +23,7 @@ using namespace Hermes;
 #define CALL_INFO_LAMBDA     __LINE__, __FILE__
 
 
-MpiLib::MpiLib( Component* owner, Params& params) : Interface(owner), m_retFunctor(NULL)
+MpiLib::MpiLib( ComponentId_t id, Params& params) : Interface(id), m_retFunctor(NULL), m_pt2pt(NULL)
 {
 
     if ( params.find<bool>("print_all_params",false) ) {
@@ -42,12 +42,12 @@ MpiLib::MpiLib( Component* owner, Params& params) : Interface(owner), m_retFunct
 
 	m_dbg.debug(CALL_INFO,1,0,"pt2pt module name %s\n",moduleName.c_str());
 
-    m_pt2pt = dynamic_cast< Hermes::Mpi::Interface*>( owner->loadSubComponent( moduleName, owner, pt2ptParams ) );
+    m_pt2pt = dynamic_cast< Hermes::Mpi::Interface*>( loadAnonymousSubComponent<Hermes::Interface>( moduleName, "",0, ComponentInfo::SHARE_NONE, pt2ptParams ) );
     assert(m_pt2pt);
 
 	std::ostringstream tmp;
     tmp << this << "-AuroraMpiLibSelfLink";
-   	m_selfLink = owner->configureSelfLink(tmp.str(), "1 ns", new Event::Handler<MpiLib>(this,&MpiLib::selfLinkHandler));
+   	m_selfLink = configureSelfLink(tmp.str(), "1 ns", new Event::Handler<MpiLib>(this,&MpiLib::selfLinkHandler));
 
 	m_barrier = new Collectives::Barrier(*m_pt2pt);
 }
