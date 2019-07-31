@@ -38,7 +38,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
     	m_selfLink = owner->configureSelfLink(tmp.str(), "1 ns", new Event::Handler<MpiPt2Pt>(this,&MpiPt2Pt::selfLinkHandler));
 
     	Params modParams;
-    	m_misc = dynamic_cast< Hermes::Misc::Interface*>( owner->loadSubComponent( "aurora.misc", owner, modParams ) );
+		m_misc = dynamic_cast< Hermes::Misc::Interface*>( loadAnonymousSubComponent<Hermes::Interface>( "aurora.misc", "", 0, ComponentInfo::SHARE_NONE, modParams ) );
     	assert(m_misc);
 	}
 
