@@ -33,8 +33,12 @@ nicParams = {
 
 emberParams = {
     "os.module"    : "aurora.host",
-    "os.name"      : "Host",
+    "os.name"      : "host",
     "api.0.module" : "aurora.mpiLib",
+
+    'host.print_all_params' : 0,
+    'host.verboseLevel' : 0,
+    'host.verboseMask' : -1,
 
     'aurora.mpiLib.verboseLevel' : 0,
     'aurora.mpiLib.verboseMask' : -1,
@@ -47,7 +51,7 @@ emberParams = {
     'aurora.mpiLib.pt2pt.rdmaLib.verboseLevel'  : 0,
     'aurora.mpiLib.pt2pt.rdmaLib.verboseMask'  : -1,
 
-    "verbose" : 10,
+    "verbose" : 0,
     "verboseMask" : -1,
 }
 
