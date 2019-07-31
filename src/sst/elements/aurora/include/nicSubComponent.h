@@ -27,7 +27,11 @@ namespace Aurora {
 class NicSubComponent : public SubComponent {
 
   public:
-    NicSubComponent( Component* owner ) : SubComponent(owner) {}
+
+    SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Aurora::NicSubComponent)
+
+    NicSubComponent( Component* owner ) : SubComponent(owner) {assert(0);}
+    NicSubComponent( ComponentId_t id ) : SubComponent(id) {}
     virtual void setup() {}
     virtual void finish() {}
 
@@ -52,6 +56,8 @@ class NicSubComponent : public SubComponent {
 
 	virtual bool recvNotify( int vc ) { assert(0); } 
 	virtual bool sendNotify( int vc ) { assert(0); } 
+	virtual void setRecvNotify( std::function<void()> ) { assert(0); } 
+	virtual void setSendNotify( std::function<void()> ) { assert(0); } 
 
   private:
     std::vector<Link*>          m_toCoreLinks;

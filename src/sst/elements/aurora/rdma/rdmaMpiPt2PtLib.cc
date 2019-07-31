@@ -42,7 +42,8 @@ RdmaMpiPt2PtLib::RdmaMpiPt2PtLib( Component* owner, Params& params) : MpiPt2Pt(o
 
 	Params rdmaParams =  params.find_prefix_params("rdmaLib.");
 
-	m_rdma = dynamic_cast< Hermes::RDMA::Interface*>( owner->loadSubComponent( "aurora.rdmaLib", owner, rdmaParams ) );
+	m_rdma = dynamic_cast< Hermes::RDMA::Interface*>( loadAnonymousSubComponent<Hermes::Interface>( "aurora.rdmaLib", "", 0, ComponentInfo::SHARE_NONE, rdmaParams ) );
+
 	assert(m_rdma);
 }
 

@@ -46,7 +46,7 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
     )
 
 	RdmaLib( Component*, Params& );
-	~RdmaLib() { printf("%s()\n",__func__);} 
+	~RdmaLib() { } 
 
 	std::string getName()        { return "Rdma"; }
 

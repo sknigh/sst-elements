@@ -74,7 +74,7 @@ Nic::Nic(ComponentId_t id, Params &params) :
     m_linkControl->initialize(params.find<std::string>("rtrPortName","rtr"), link_bw, 2, input_buf_size, output_buf_size );
 
 	Params p = params.find_prefix_params("nicSubComponent.");
-    m_nicSC = (NicSubComponent*)loadSubComponent( params.find<std::string>("nicSubComponent"), this, p);
+    m_nicSC = loadAnonymousSubComponent<NicSubComponent>( params.find<std::string>("nicSubComponent"), "",0, ComponentInfo::SHARE_NONE, p );
     assert( m_nicSC );
 
 	m_nicSC->setNodeNum( m_nodeId );
@@ -98,6 +98,8 @@ Nic::Nic(ComponentId_t id, Params &params) :
 		m_toCoreLinks.push_back( link );
 	}
 	m_nicSC->init();
+	m_nicSC->setRecvNotify( std::bind( &Nic::registerRecvNotify, this ) );
+	m_nicSC->setSendNotify( std::bind( &Nic::registerSendNotify, this ) );
 
 	m_dbg.verbose(CALL_INFO,1,1,"numberOfCores=%d\n", numCores);
 

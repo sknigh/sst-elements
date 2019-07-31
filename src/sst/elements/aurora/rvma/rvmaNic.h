@@ -30,13 +30,13 @@ namespace RVMA {
 class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
   public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         RvmaNicSubComponent,
         "aurora",
         "rvmaNic",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "",
-        ""
+        SST::Aurora::RVMA::RvmaNicSubComponent 
     )
 
     SST_ELI_DOCUMENT_PARAMS(
@@ -44,8 +44,12 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
         {"verboseMask","Sets the debug mask",""},
     )
 
-    RvmaNicSubComponent( Component* owner, Params& params );
+    RvmaNicSubComponent( Component* owner, Params& params ) : NicSubComponent(owner) {} 
+    RvmaNicSubComponent( ComponentId_t id, Params& params );
 	void setup();
+
+    void setRecvNotify( std::function<void()> func ) { m_recvNotify = func; }
+    void setSendNotify( std::function<void()> func ) { m_sendNotify = func; }
 
 	void handleEvent( int core, Event* event );
     bool clockHandler( Cycle_t );
@@ -303,6 +307,9 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 	std::queue< SendEntry* > m_sendQ;
 
 	int m_vc;
+
+    std::function<void()> m_recvNotify;
+    std::function<void()> m_sendNotify;
 };
 
 }

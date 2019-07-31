@@ -30,7 +30,7 @@ const char* RdmaNicSubComponent::m_cmdName[] = {
 };
 const char* RdmaNicSubComponent::protoNames[] = {"Message","RdmaRead","RdmaWrite"};
 
-RdmaNicSubComponent::RdmaNicSubComponent( Component* owner, Params& params ) : NicSubComponent(owner),
+RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id),
    	m_vc(0), m_firstActiveDMAslot(0), m_firstAvailDMAslot(0), m_activeDMAslots(0), m_streamIdCnt(0), m_availRecvDmaEngines(0), m_clockCnt(0), m_clocking(false)
 {
 
@@ -56,7 +56,7 @@ RdmaNicSubComponent::RdmaNicSubComponent( Component* owner, Params& params ) : N
 	m_dmaSlots.resize( params.find<int>("numDmaSlots",32) );
 	m_availRecvDmaEngines =  params.find<int>("numDmaSlots",32 );
 
-    m_selfLink = owner->configureSelfLink("Nic::selfLink", "1 ns",
+    m_selfLink = configureSelfLink("Nic::selfLink", "1 ns",
        new Event::Handler<RdmaNicSubComponent>(this,&RdmaNicSubComponent::handleSelfEvent));
     assert( m_selfLink );
 
@@ -86,14 +86,6 @@ void RdmaNicSubComponent::finish()
 void RdmaNicSubComponent::setNumCores( int num ) {
 	NicSubComponent::setNumCores( num );
 	m_coreTbl.resize( getNumCores() );
-}
-
-void RdmaNicSubComponent::registerRecvNotify() {
-	static_cast< Nic* >(parent)->registerRecvNotify(); 	
-}
-
-void RdmaNicSubComponent::registerSendNotify() {
-	static_cast< Nic* >(parent)->registerSendNotify(); 	
 }
 
 void RdmaNicSubComponent::handleEvent( int core, Event* event ) {

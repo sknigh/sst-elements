@@ -36,13 +36,13 @@ namespace RDMA {
 class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
   public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         RdmaNicSubComponent,
         "aurora",
         "rdmaNic",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "",
-        ""
+        SST::Aurora::RDMA::RdmaNicSubComponent    
     )
 
     SST_ELI_DOCUMENT_PARAMS(
@@ -50,7 +50,8 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
         {"verboseMask","Sets the debug mask",""},
     )
 
-    RdmaNicSubComponent( Component* owner, Params& params );
+    RdmaNicSubComponent( Component* owner, Params& params ) : NicSubComponent(owner) {} 
+    RdmaNicSubComponent( ComponentId_t id, Params& params );
 	void setup();
 	void finish();
 
@@ -58,9 +59,10 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
     bool clockHandler( Cycle_t );
 
 	void setNumCores(int);
+	void setRecvNotify( std::function<void()> func ) { m_recvNotify = func; }
+    void setSendNotify( std::function<void()> func ) { m_sendNotify = func; }
 
   private:
-
 	static const char* protoNames[];
 	enum PktProtocol { Message, RdmaRead, RdmaWrite };
 	void handleSelfEvent( Event* );
@@ -462,8 +464,8 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
         m_clocking = false;
 	}
 
-	void registerRecvNotify();
-	void registerSendNotify();
+	void registerRecvNotify() { m_recvNotify(); } 
+	void registerSendNotify() { m_sendNotify(); }
 
 	typedef void (RdmaNicSubComponent::*MemFuncPtr)( int, Event* );
 
@@ -484,6 +486,9 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
     UnitAlgebra                 m_clockRate;
 	Clock::Handler<RdmaNicSubComponent>*        m_clockHandler;
 	TimeConverter* m_timeConverter;
+
+	std::function<void()> m_recvNotify;
+	std::function<void()> m_sendNotify;
 };
 
 }

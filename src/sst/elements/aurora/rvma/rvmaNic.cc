@@ -25,7 +25,7 @@ const char* RvmaNicSubComponent::m_cmdName[] = {
     FOREACH_CMD(GENERATE_CMD_STRING)
 };
 
-RvmaNicSubComponent::RvmaNicSubComponent( Component* owner, Params& params ) : NicSubComponent(owner), m_vc(0),
+RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id), m_vc(0),
 	m_firstActiveDMAslot(0), m_firstAvailDMAslot(0), m_activeDMAslots(0)
 {
 
@@ -53,7 +53,7 @@ RvmaNicSubComponent::RvmaNicSubComponent( Component* owner, Params& params ) : N
 
 	m_dmaSlots.resize( params.find<int>("numDmaSlots",32) );
 
-    m_selfLink = owner->configureSelfLink("Nic::selfLink", "1 ns",
+    m_selfLink = configureSelfLink("Nic::selfLink", "1 ns",
        new Event::Handler<RvmaNicSubComponent>(this,&RvmaNicSubComponent::handleSelfEvent));
     assert( m_selfLink );
 }
