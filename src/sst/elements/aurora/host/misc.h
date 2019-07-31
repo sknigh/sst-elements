@@ -27,20 +27,21 @@ class Misc : public Hermes::Misc::Interface
 {
   public:
   public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         Misc,
         "aurora",
         "misc",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "",
-        ""
+        SST::Aurora::Misc 
     )
 
-    Misc(Component* owner, Params&) : Interface(owner), m_os(NULL), m_callback(NULL) { 
+    Misc(Component* owner, Params&) : Interface(owner) {}
+    Misc(ComponentId_t id, Params&) : Interface(id), m_os(NULL), m_callback(NULL) { 
 		std::ostringstream tmp;
 		tmp << this << "-AuroraMiscSelfLink";
 		//printf("Misc::%s() %s\n",__func__,tmp.str().c_str());
-		m_selfLink = owner->configureSelfLink(tmp.str(), "1 ns", new Event::Handler<Misc>(this,&Misc::selfLinkHandler));
+		m_selfLink = configureSelfLink(tmp.str(), "1 ns", new Event::Handler<Misc>(this,&Misc::selfLinkHandler));
 	}
     ~Misc() {}
 
