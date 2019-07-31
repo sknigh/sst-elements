@@ -40,6 +40,7 @@ struct Status {
 
 class Interface : public Hermes::Interface {
   public:
+    Interface( ComponentId_t id ) : Hermes::Interface(id) {}
     Interface( Component* parent ) : Hermes::Interface(parent) {}
 	virtual ~Interface() {}
 	virtual void createRQ( RDMA::RqId, Callback* ) = 0;

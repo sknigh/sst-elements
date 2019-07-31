@@ -38,6 +38,7 @@ struct Completion {
 
 class Interface : public Hermes::Interface {
   public:
+    Interface( ComponentId_t id ) : Hermes::Interface(id) {}
     Interface( Component* parent ) : Hermes::Interface(parent) {}
 	virtual ~Interface() {}
 	virtual void initWindow( RVMA::VirtAddr, size_t threshold , RVMA::EpochType, RVMA::Window*, Callback* ) = 0;

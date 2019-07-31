@@ -65,7 +65,10 @@ static inline   unsigned sizeofDataType( Mpi::DataType type ) {
 
 class Interface : public Hermes::Interface {
   public:
+    SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Hermes::Mpi::Interface)
+
     Interface( Component* parent ) : Hermes::Interface(parent) {}
+    Interface( ComponentId_t id ) : Hermes::Interface(id) {}
 	virtual ~Interface() {}
 	virtual void init( int* numRanks, int* myRank, Callback* ) = 0;
 

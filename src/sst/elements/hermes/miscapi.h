@@ -27,6 +27,7 @@ namespace Misc {
 class Interface : public Hermes::Interface {
     public:
 
+    Interface( ComponentId_t id ) : Hermes::Interface(id) {}
     Interface( Component* parent ) : Hermes::Interface(parent) {}
 
     virtual void getNodeNum( int*, Callback*) { assert(0); }
