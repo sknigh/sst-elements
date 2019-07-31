@@ -48,7 +48,7 @@ emberParams = {
     'aurora.mpiLib.pt2pt.verboseMask' : -1,
 
     'aurora.mpiLib.pt2pt.print_all_params'  : False,
-    'aurora.mpiLib.pt2pt.rdmaLib.verboseLevel'  : 0,
+    'aurora.mpiLib.pt2pt.rdmaLib.verboseLevel'  : 10,
     'aurora.mpiLib.pt2pt.rdmaLib.verboseMask'  : -1,
 
     "verbose" : 0,
