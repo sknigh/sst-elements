@@ -31,13 +31,13 @@ namespace Aurora {
 class MpiLib : public Hermes::MP::Interface
 {
   public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         MpiLib,
         "aurora",
         "mpiLib",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "",
-        ""
+        SST::Aurora::MpiLib 
     )
 
     SST_ELI_DOCUMENT_PARAMS(
@@ -45,7 +45,8 @@ class MpiLib : public Hermes::MP::Interface
         {"verboseMask","Sets the debug mask",""},
     )
 
-    MpiLib( Component*, Params& );
+    MpiLib( Component* owner, Params& ) : Interface(owner) { assert(0); }
+    MpiLib( ComponentId_t, Params& );
     ~MpiLib() {}
 
     std::string getName()        { return "AuroraMpi"; }
@@ -60,6 +61,7 @@ class MpiLib : public Hermes::MP::Interface
 
     void setOS( Hermes::OS* os ) {
         m_os = static_cast<Host*>(os);
+        assert( m_pt2pt );
         m_pt2pt->setOS(m_os);
     }
 
