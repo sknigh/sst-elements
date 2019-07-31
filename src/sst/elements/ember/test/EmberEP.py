@@ -84,7 +84,7 @@ class EmberEP( EndPoint ):
 
             os = ep.setSubComponent( "OS", self.driverParams['os.module'] )
             for key, value in self.driverParams.items():
-                if key.startswith("hermesParams."):
+                if key.startswith(self.driverParams['os.name']):
                     key = key[key.find('.')+1:] 
                     #print key, value
                     os.addParam( key,value)
