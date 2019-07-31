@@ -80,7 +80,9 @@ void RdmaNicSubComponent::finish()
 {
 	Cycle_t cycle  = getNextClockCycle(m_timeConverter);
 
+#if 0
 	printf("RdmaNicSubComponent::%s %zu %" PRIu64 " %f\n",__func__,m_clockCnt,cycle,(float)m_clockCnt/cycle);
+#endif
 }
 
 void RdmaNicSubComponent::setNumCores( int num ) {
