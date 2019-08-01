@@ -160,6 +160,8 @@ libember_la_SOURCES = \
 	mpi/motifs/emberrandomgen.cc \
 	mpi/motifs/emberunstructured.h \
 	mpi/motifs/emberunstructured.cc \
+	motifs/rvmaMicro/emberRvmaTest.h \
+	motifs/rvmaMicro/emberRvmaTest.cc \
 	libs/emberShmemLib.h \
 	libs/shmem/emberFamEvent.h \
 	libs/shmem/emberFamAddEv.h \
@@ -228,6 +230,7 @@ libember_la_SOURCES = \
 	shmem/motifs/emberShmemFAM_Gatherv.h \
 	shmem/motifs/emberShmemFAM_AtomicInc.h \
 	shmem/motifs/emberShmemFAM_Cswap.h \
+	libs/emberRvmaLib.h \
 	sirius/include/sirius/siriusglobals.h
 
 
