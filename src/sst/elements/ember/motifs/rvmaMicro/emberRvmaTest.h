@@ -18,7 +18,6 @@
 #define _H_EMBER_MOTIF_RVMA_TEST
 
 #include "embergen.h"
-#include "emberOsLib.h"
 #include "libs/emberRvmaLib.h"
 #include "libs/misc.h"
 
@@ -28,32 +27,21 @@ namespace Ember {
 class EmberRvmaTestGenerator : public EmberGenerator {
 
 public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         EmberRvmaTestGenerator,
         "ember",
         "RvmaTestMotif",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "RVMA Test",
-        "SST::Ember::EmberGenerator"
+        SST::Ember::EmberRvmaTestGenerator
     )
 
     SST_ELI_DOCUMENT_PARAMS()
 
-	EmberRvmaTestGenerator(SST::Component* owner, Params& params) :
-		EmberGenerator(owner, params, "RvmaTest" ), m_recvState(0)
+	EmberRvmaTestGenerator(SST::Component* owner, Params& params) : EmberGenerator( owner, params,"") {}
+	EmberRvmaTestGenerator(SST::ComponentId_t id, Params& params) :
+		EmberGenerator( id, params, "RvmaTest" ), m_recvState(0), m_rvma(NULL), m_miscLib(NULL)
 	{ 
-
-        m_rvma = static_cast<EmberRvmaLib*>(getLib("rvma"));
-        assert(m_rvma);
-        m_rvma->initOutput( &getOutput() );
-        m_miscLib = static_cast<EmberMiscLib*>(getLib("misc"));
-        assert(m_miscLib);
-        m_miscLib->initOutput( &getOutput() );
-
-        m_osLib = new EmberOsLib();
-        assert(m_osLib);
-        m_osLib->initOutput( &getOutput() );
-
 		int putBufLen = m_recvBufLen = params.find<size_t>( "arg.bufferSize", 0x400 ); 
 		m_virtAddr = params.find<uint64_t>( "arg.virtAddr",0xbeef000000000000);
 		m_numRecvBufs = params.find<int>("arg.numRecvBufs", 5 );
@@ -63,6 +51,15 @@ public:
 
 		m_generate = &EmberRvmaTestGenerator::init;
 		m_send = new Send(this, putBufLen, m_virtAddr);
+	}
+
+	void setup() {
+        m_rvma = static_cast<EmberRvmaLib*>(getLib("rvma"));
+        assert(m_rvma);
+        m_rvma->initOutput( &getOutput() );
+        m_miscLib = static_cast<EmberMiscLib*>(getLib("misc"));
+        assert(m_miscLib);
+        m_miscLib->initOutput( &getOutput() );
 	}
 
 	class Send {
@@ -97,7 +94,7 @@ public:
 
 	  private:
 		RVMA::VirtAddr m_virtAddr;
-		RVMA::ProcAddr m_destProc;
+		ProcAddr m_destProc;
 		int m_state;
 		EmberRvmaTestGenerator& obj;
 		Hermes::MemAddr m_putBuf;
@@ -116,9 +113,9 @@ public:
 		  case 1:
 			printf("%s():%d nodeNum=%d numNodes=%d buffer=0x%" PRIx64 "\n",
 					__func__,__LINE__,m_node_num,m_num_nodes, m_recvBuf.getSimVAddr() );
-			os().getTime( evQ, &m_start );
+			enQ_getTime( evQ, &m_start );
 			rvma().initWindow( evQ, m_virtAddr, m_recvBufLen, RVMA::Byte, &m_window );
-			os().getTime( evQ, &m_stop );
+			enQ_getTime( evQ, &m_stop );
 			++m_recvState;
 			break;
 
@@ -212,7 +209,6 @@ public:
 protected:
     EmberRvmaLib& rvma() { return *m_rvma; }
     EmberMiscLib& misc() { return *m_miscLib; }
-    EmberOsLib& os() { return *m_osLib; }
 
     int m_node_num;
     int m_num_nodes;
@@ -220,7 +216,6 @@ protected:
 private:
     EmberRvmaLib* m_rvma;
     EmberMiscLib* m_miscLib;
-    EmberOsLib*   m_osLib;
 };
 
 }
