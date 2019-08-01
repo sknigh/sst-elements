@@ -26,7 +26,7 @@ class EmberRvmaPutEvent : public EmberRvmaEvent {
 
 public:
 	EmberRvmaPutEvent( RVMA::Interface& api, Output* output,
-		Hermes::MemAddr srcAddr, size_t size, Hermes::RVMA::ProcAddr destProc,
+		Hermes::MemAddr srcAddr, size_t size, Hermes::ProcAddr destProc,
                         RVMA::VirtAddr virtAddr, size_t offset, int* retval ) :
 		EmberRvmaEvent( api, output, retval ), m_srcAddr(srcAddr), m_size(size), m_destProc(destProc), 
 		m_virtAddr(virtAddr), m_offset(offset) {}
@@ -43,7 +43,7 @@ public:
 private:
 	Hermes::MemAddr m_srcAddr;
 	size_t m_size;
-	Hermes::RVMA::ProcAddr m_destProc;
+	Hermes::ProcAddr m_destProc;
 	RVMA::VirtAddr m_virtAddr;
 	size_t m_offset;
 };
