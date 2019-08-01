@@ -148,7 +148,7 @@ EmberEngine::ApiMap EmberEngine::createApiMap( OS* os,
         std::string moduleName = apiParams.find<std::string>( "module" );
         assert( ! moduleName.empty() );
 
-        Params modParams = params.find_prefix_params( moduleName + "." );
+        Params modParams = apiParams.find_prefix_params( "params." );
 
         output.verbose(CALL_INFO, 2, ENGINE_MASK, "moduleName=%s\n", moduleName.c_str());
 
