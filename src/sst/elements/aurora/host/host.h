@@ -49,6 +49,11 @@ class Host : public Hermes::OS
 		return m_rank; 
 	}
 
+	int getPid() { 
+		m_dbg.debug(CALL_INFO,1,2,"pid=%d\n",m_coreId);
+		return m_coreId;
+	}
+
 	int getNodeNum() { 
 		m_dbg.debug(CALL_INFO,1,2,"nodeNum=%d\n",m_nodeNum);
 		return m_nodeNum; 
@@ -96,7 +101,6 @@ class Host : public Hermes::OS
 
  		int nid = m_info.getGroup(comm)->getMapping( rank ) / m_numCores;
 
-
 		m_dbg.debug(CALL_INFO,1,2,"comm=%d rank=%d -> nid=%d\n",comm,rank,nid);
 		return nid;
 	}
@@ -108,6 +112,7 @@ class Host : public Hermes::OS
 		m_dbg.debug(CALL_INFO,1,2,"pid=%d\n",pid);
 		return pid ;
 	}
+
 	int getMyRank( Mpi::Comm comm ) {
 		assert( comm == Mpi::CommWorld );
 
