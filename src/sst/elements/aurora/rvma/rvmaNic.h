@@ -55,11 +55,19 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
     bool clockHandler( Cycle_t );
 
 	struct Buffer {
-		Buffer ( Hermes::MemAddr addr, size_t size, Hermes::RVMA::Completion* completion) : addr(addr), size(size), completion(completion) {}
+		Buffer ( Hermes::MemAddr addr, size_t size, Hermes::RVMA::Completion* completion) : addr(addr), size(size), completion(completion), nBytes(0), filled(false) {}
+		void copy( void* ptr, size_t offset, size_t length ) {
+			assert( offset + length <= size );
+			if ( addr.getBacking() ) {
+				memcpy( addr.getBacking(offset), ptr, length);
+			}
+			nBytes += length;
+		}
 		Hermes::MemAddr addr;
 		size_t size;
-		size_t count;
 		Hermes::RVMA::Completion* completion;
+		size_t nBytes;
+		bool filled;
 	};
 
 	Link* m_selfLink;
@@ -83,6 +91,9 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		uint64_t virtAddr() { return cmd->virtAddr; }
 		size_t length() { return cmd->size; }
 		int destPid() { return cmd->proc.pid; }
+		void* dataAddr() { return cmd->srcAddr.getBacking(); }
+		int getSrcCore() { return srcCore; }
+	  	PutCmd& getCmd() { return *cmd; }
 
 	  private:
 		int totalDMAs;
@@ -156,29 +167,29 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 		Buffer* recv( size_t offset, void* ptr, size_t nbytes ) {
 
-			//printf("%s()  offset=%zu nbytes=%zu\n",__func__,offset,nbytes);
 			if ( m_availBuffers.empty() ) {
-				printf("dumping %zu bytes\n",nbytes);
 				return NULL;
 			}
 
 			Buffer* buffer = m_availBuffers.front();
 
-			// buffer->copy( ptr, nbytes );
+			buffer->copy( ptr, offset, nbytes );
 		
-			m_count += nbytes;
+			if ( m_epochType == Hermes::RVMA::Op ) {
+				++m_count;
+			} else {
+				m_count += nbytes;
+			}
 
-			//printf("m_count %zu\n",m_count);
-
+			printf("count=%zu threshold=%zu\n",m_count,m_threshold );
 			if ( m_count == m_threshold ) {
 				endEpoch( buffer );
-				return buffer;
 			}
-			return NULL;
+			return buffer;
 		}
 
 		void endEpoch( Buffer* buffer ) {
-			//printf("%s() %d\n",__func__,__LINE__);
+			buffer->filled = true;
 			buffer->completion->count = m_count;	
 			buffer->completion->addr = buffer->addr;	
 			m_usedBuffers.push_back( buffer );
@@ -213,11 +224,8 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		int postBuffer( Hermes::MemAddr addr, size_t size, Hermes::RVMA::Completion* completion ) {
 			std::deque<Buffer*>::iterator iter;
 
-			//printf("%s():%d\n",__func__,__LINE__);
-
 			for ( iter = m_usedBuffers.begin(); iter != m_usedBuffers.end(); ++iter ) {
 				if ( (*iter)->addr.getSimVAddr() == addr.getSimVAddr() ) {
-					//printf("%s():%d reuse buffer\n",__func__,__LINE__);
 					m_availBuffers.push_back( *iter );
 					m_usedBuffers.erase(iter);
 					return 0;
@@ -228,14 +236,14 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 					return -1;
 				}
 			}
-			//printf("%s():%d insert new buffer\n",__func__,__LINE__);
 			m_availBuffers.push_back( new Buffer( addr, size, completion) );
 			return 0;
 		}
 		Hermes::RVMA::VirtAddr getVirtAddr() { return m_addr; }
 
 		bool checkVirtAddr( Hermes::RVMA::VirtAddr addr ) {
-			return ( addr >= m_addr && addr < m_addr + m_threshold );
+			return ( addr == m_addr );
+			//return ( addr >= m_addr && addr < m_addr + m_threshold );
 		}
 
 	  private:
@@ -247,6 +255,16 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		std::deque<Buffer*> m_availBuffers;
 		std::deque<Buffer*> m_usedBuffers;
 	};
+
+    bool recvNotify( int vc ) {
+        m_dbg.debug(CALL_INFO,1,2,"\n");
+        return false;
+    }
+
+    bool sendNotify( int vc ) {
+        m_dbg.debug(CALL_INFO,1,2,"\n");
+        return false;
+    }
 
   private:
 
@@ -279,11 +297,26 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		Core() : m_mwaitCmd(NULL) {}
 		std::vector<Window> m_windowTbl;
 		MwaitCmd*   		m_mwaitCmd;
+		std::deque< Buffer* > m_completed;
+
+		void saveCompleted( Buffer* buffer ) {
+			m_completed.push_back(buffer);
+		}
+
+		bool checkCompleted( MwaitCmd* cmd ) {
+			std::deque< Buffer* >::iterator iter = m_completed.begin();
+			for ( ; iter != m_completed.end(); ++iter ) {
+				if ( cmd->completion == (*iter)->completion ) {
+					m_completed.erase(iter);
+					return true;
+				}
+			}
+			return false;
+		}
 
 		int findWindow( Hermes::RVMA::VirtAddr virtAddr ) {
 			for ( int i = 0; i < m_windowTbl.size(); i++ ) {
 				if ( m_windowTbl[i].isActive() ) {
-					//printf("0x%" PRIx64 "\n",m_windowTbl[i].getVirtAddr() );
 					if ( m_windowTbl[i].checkVirtAddr( virtAddr ) ) {
 						return i;
 					}
@@ -291,12 +324,17 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 			}
 			return -1;
 		}
+
 	};
 
 	std::vector<Core>   m_coreTbl;
 	int m_maxBuffers;
 	int m_maxNumWindows;
 
+   	bool m_clocking;
+    UnitAlgebra                 m_clockRate;
+    Clock::Handler<RvmaNicSubComponent>*        m_clockHandler;
+    TimeConverter* m_timeConverter;
 
 	typedef void (RvmaNicSubComponent::*MemFuncPtr)( int, Event* );
 
