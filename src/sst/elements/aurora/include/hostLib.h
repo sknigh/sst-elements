@@ -115,7 +115,7 @@ class HostLib : public Interface
 			}
 		} else {
 			m_state = Idle;
-			m_dbg.debug(CALL_INFO,1,2,"return to motif\n");
+			m_dbg.debug(CALL_INFO,1,2,"return\n");
 			SelfEvent* e = static_cast<SelfEvent*>(event);
 			Hermes::Callback&  callback = *e->callback;
 			callback( e->retval );
