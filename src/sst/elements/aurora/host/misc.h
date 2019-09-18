@@ -48,6 +48,7 @@ class Misc : public Hermes::Misc::Interface
     virtual void setup() {}
     virtual void finish() {}
     virtual std::string getName() { return "Misc"; }
+    virtual std::string getType() { return "misc"; }
 
     virtual void setOS( Hermes::OS* os ) {
         m_os = static_cast<Host*>(os);
