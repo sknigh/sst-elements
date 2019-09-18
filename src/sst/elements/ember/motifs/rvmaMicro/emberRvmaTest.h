@@ -80,8 +80,8 @@ public:
 				m_destProc.node=( obj.m_node_num + 1) % obj.m_num_nodes;
 				m_destProc.pid = 0;
 				printf("%s() put\n",__func__);
-				obj.rvma().put( evQ, m_putBuf, m_putBufLen/2, m_destProc, m_virtAddr, 0  ); 
-				obj.rvma().put( evQ, m_putBuf, m_putBufLen/2, m_destProc, m_virtAddr, m_putBufLen/2 ); 
+				obj.rvma().put( evQ, m_putBuf, m_putBufLen/2, m_destProc, m_virtAddr, 0, NULL  ); 
+				obj.rvma().put( evQ, m_putBuf, m_putBufLen/2, m_destProc, m_virtAddr, m_putBufLen/2, NULL ); 
 				++m_state;
 				break;
 
