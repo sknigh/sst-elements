@@ -32,6 +32,7 @@ typedef int Window;
 typedef uint64_t VirtAddr; 
 
 struct Completion {
+	Completion() : count(0)  {}
 	Hermes::MemAddr addr;
 	size_t			count; //can be bytes or operations
 };	
@@ -46,7 +47,7 @@ class Interface : public Hermes::Interface {
 	virtual void winIncEpoch( RVMA::Window, Callback* ) = 0;
 	virtual void winGetEpoch( RVMA::Window, int*, Callback* ) = 0;
 	virtual void winGetBufPtrs( RVMA::Window, Completion*, int count, Callback* ) = 0;
-	virtual void put( Hermes::MemAddr, size_t size, ProcAddr dest,  RVMA::VirtAddr, size_t offset, Callback* ) = 0;
+	virtual void put( Hermes::MemAddr, size_t size, ProcAddr dest,  RVMA::VirtAddr, size_t offset, Completion*, Callback* ) = 0;
 	virtual void postBuffer( Hermes::MemAddr, size_t size, Completion*, RVMA::Window, Callback* ) = 0;
 	virtual void mwait( Completion*, Callback* ) = 0;
 
