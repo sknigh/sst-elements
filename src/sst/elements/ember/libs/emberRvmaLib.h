@@ -56,7 +56,7 @@ class EmberRvmaLib : public EmberLib {
 	inline void winGetEpoch( Queue&, RVMA::Window, int* epoch, int* retval = NULL );
 	inline void winGetBufPtrs( Queue&, RVMA::Window, Hermes::RVMA::Completion*, int count, int* retval = NULL );
 	inline void put( Queue&, Hermes::MemAddr srcAddr, size_t, Hermes::ProcAddr, RVMA::VirtAddr, 
-			size_t offset, int* retval = NULL );
+			size_t offset, Hermes::RVMA::Completion*, int* retval = NULL );
 	inline void mwait( Queue&, Hermes::RVMA::Completion* completion, int* retval = NULL );
 
   private:
@@ -101,10 +101,10 @@ void EmberRvmaLib::postBuffer( Queue& q, Hermes::MemAddr addr, size_t size,
 }
 
 void EmberRvmaLib::put( Queue& q, Hermes::MemAddr srcAddr, size_t size, Hermes::ProcAddr destProc,
-						RVMA::VirtAddr virtAddr, size_t offset, int* retval )
+						RVMA::VirtAddr virtAddr, size_t offset, Hermes::RVMA::Completion* completion, int* retval )
 {
 	m_output->verbose(CALL_INFO, 2, 0,"\n");
-	q.push( new EmberRvmaPutEvent( api(), m_output, srcAddr, size, destProc, virtAddr, offset, retval ) );
+	q.push( new EmberRvmaPutEvent( api(), m_output, srcAddr, size, destProc, virtAddr, offset, completion, retval ) );
 }
 
 void EmberRvmaLib::mwait( Queue& q, Hermes::RVMA::Completion* completion, int* retval  )
