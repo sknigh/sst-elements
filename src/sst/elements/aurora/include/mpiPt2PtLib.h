@@ -29,7 +29,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
   public:
 
-	MpiPt2Pt(Component* owner, Params& params) : Interface(owner), m_callback(NULL) 
+	MpiPt2Pt(Component* owner, Params& params) : Interface(owner) 
 	{
 		m_shortMsgLength = params.find<size_t>("shortMsgLength",4096);
 
@@ -135,17 +135,21 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	 Hermes::Misc::Interface& misc() { return *m_misc; }
 
-    void selfLinkHandler( Event* event ) {
-        assert( m_callback );
-        m_dbg.debug(CALL_INFO,1,1,"\n");
-        (*m_callback)( m_retval );
-        delete m_callback;
-        m_callback = NULL;
-    }
+	class SelfEvent : public SST::Event { 
+	  public:
+		SelfEvent( Hermes::Callback* callback, int retval ) : callback(callback), retval(retval) {} 
+ 		Hermes::Callback* callback;
+		int retval;
+		NotSerializable(SelfEvent);
+	}; 
+	void selfLinkHandler( Event* e ) {
+		SelfEvent* event = static_cast<SelfEvent*>(e);
+		m_dbg.debug(CALL_INFO,1,1,"\n");
+		(*(event->callback))( event->retval );
+		delete e;
+	}
 
     Link* m_selfLink;
-    Hermes::Callback* m_callback;
-    int m_retval;
 
     struct MsgHdrBase {
         int srcRank;
