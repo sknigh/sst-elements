@@ -49,6 +49,7 @@ class RvmaLib : public HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >
 	~RvmaLib() {} 
 
 	std::string getName()        { return "Rvma"; }
+	std::string getType()        { return "rvma"; }
 
 	void initWindow( Hermes::RVMA::VirtAddr addr, size_t threshold, Hermes::RVMA::EpochType type, 
 			Hermes::RVMA::Window* window, Hermes::Callback* callback )
@@ -102,26 +103,22 @@ class RvmaLib : public HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >
 	}
 
     void put( Hermes::MemAddr srcAddr, size_t size, Hermes::ProcAddr dest, Hermes::RVMA::VirtAddr virtAddr,
-		   						size_t offset, Hermes::Callback* callback )
+		   						size_t offset, Hermes::RVMA::Completion* comp, Hermes::Callback* callback )
 	{
 		dbg().debug(CALL_INFO,1,2,"size=%zu destNode=%d destPid=%d virtAddr=0x%" PRIx64 " offset=%zu\n",
                         size, dest.node, dest.pid, virtAddr, offset );
-    	NicCmd* cmd = new PutCmd( srcAddr, size, dest, virtAddr, offset );
+    	NicCmd* cmd = new PutCmd( srcAddr, size, dest, virtAddr, offset, comp );
 		setRetvalCallback();
 		doEnter( cmd, callback );
 	}
 
-	void mwait(  Hermes::RVMA::Completion* completion, Hermes::Callback* callback ) {
-	}
-#if 0
-	void mwait(  Hermes::RVMA::Completion* completion, bool blocking, Hermes::Callback* callback )
+	void mwait(  Hermes::RVMA::Completion* completion, Hermes::Callback* callback )
 	{
 		dbg().debug(CALL_INFO,1,2,"completion %p\n",completion);
-		NicCmd* cmd = new MwaitCmd( completion, blocking );
+		NicCmd* cmd = new MwaitCmd( completion, true );
 		setRetvalCallback();
 		doEnter( cmd, callback );
 	}
-#endif
 
   private:
 
