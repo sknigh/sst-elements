@@ -56,6 +56,15 @@ RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : N
     m_selfLink = configureSelfLink("Nic::selfLink", "1 ns",
        new Event::Handler<RvmaNicSubComponent>(this,&RvmaNicSubComponent::handleSelfEvent));
     assert( m_selfLink );
+
+    m_clockRate = params.find<UnitAlgebra>("clock");
+    m_dbg.verbose(CALL_INFO,1,1,"clockRate=%s\n", m_clockRate.toString().c_str());
+
+    if ( m_clockRate.getRoundedValue() ) {
+        m_clockHandler = new Clock::Handler<RvmaNicSubComponent>(this,&RvmaNicSubComponent::clockHandler);
+        m_timeConverter = registerClock( m_clockRate, m_clockHandler );
+        m_clocking = true;
+    }
 }
 
 void RvmaNicSubComponent::setup()
@@ -76,14 +85,14 @@ void RvmaNicSubComponent::setNumCores( int num ) {
 void RvmaNicSubComponent::handleEvent( int core, Event* event ) {
 
 	NicCmd* cmd = static_cast<NicCmd*>(event); 
-    m_dbg.debug(CALL_INFO,2,2,"%s\n",m_cmdName[cmd->type]);
+    m_dbg.debug(CALL_INFO,3,2,"%s\n",m_cmdName[cmd->type]);
 	(this->*m_cmdFuncTbl[cmd->type])( core, event );
 }
 
 void RvmaNicSubComponent::initWindow( int coreNum, Event* event )
 {
 	InitWindowCmd* cmd = static_cast<InitWindowCmd*>(event);
-    m_dbg.debug(CALL_INFO,1,2,"addr=%" PRIx64 " threshold=%zu type=%d\n",cmd->addr,cmd->threshold,cmd->type);
+    m_dbg.debug(CALL_INFO,2,2,"addr=%" PRIx64 " threshold=%zu type=%d\n",cmd->addr,cmd->threshold,cmd->type);
 	Core& core = m_coreTbl[coreNum];
 	int window = -1;
 	for ( int i = 0; i < core.m_windowTbl.size(); i++ ) {
@@ -174,10 +183,12 @@ void RvmaNicSubComponent::put( int coreNum, Event* event )
 
     m_dbg.debug(CALL_INFO,2,1,"nid=%d pid=%d size=%zu virtAddr=0x%" PRIx64 " offset=%zu srcAddr=0x%" PRIx64 "\n",
 			cmd->proc.node,cmd->proc.pid,cmd->size,cmd->virtAddr,cmd->offset, cmd->srcAddr.getSimVAddr());
-	m_sendQ.push( new SendEntry( coreNum, cmd ) );
-	m_dbg.debug(CALL_INFO,2,1,"\n");
 
-	sendResp( coreNum, new RetvalResp(0) );	
+	m_sendQ.push( new SendEntry( coreNum, cmd ) );
+
+	if ( cmd->completion ) { 
+		sendResp( coreNum, new RetvalResp(0) );	
+	}
 }
 
 void RvmaNicSubComponent::mwait( int coreNum, Event* event )
@@ -186,12 +197,18 @@ void RvmaNicSubComponent::mwait( int coreNum, Event* event )
     m_dbg.debug(CALL_INFO,2,1,"completion %p\n",cmd->completion);
 	Core& core = m_coreTbl[coreNum];
 	assert( ! core.m_mwaitCmd );
-	core.m_mwaitCmd =  cmd;
-}
 
+	if ( core.checkCompleted( cmd ) ) {
+		sendResp( coreNum, new RetvalResp(0) );	
+		delete core.m_mwaitCmd;
+	} else {
+		core.m_mwaitCmd =  cmd;
+	}
+}
 
 bool RvmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 
+    m_dbg.debug(CALL_INFO,3,1,"\n");
 	processDMAslots();
 	processSendQ(cycle);
 	processRecv();
@@ -201,7 +218,7 @@ bool RvmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 
 void RvmaNicSubComponent::handleSelfEvent( Event* e ) {
 	SelfEvent* event = static_cast<SelfEvent*>(e);
-	m_dbg.debug(CALL_INFO,2,1,"slot %d\n",event->slot);
+	m_dbg.debug(CALL_INFO,3,1,"slot %d\n",event->slot);
 
 	m_dmaSlots[event->slot].setReady();	
 	event->entry->incCompletedDMAs();
@@ -237,12 +254,13 @@ void RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 		m_dbg.debug(CALL_INFO,2,1,"bytes left %d\n",bytesLeft);
 		int payloadSize = entry.remainingBytes() <  bytesLeft ? entry.remainingBytes() : bytesLeft;  
 
-		pkt->payloadPush( NULL, payloadSize );
+		pkt->payloadPush( entry.dataAddr(), payloadSize );
 
 		m_dbg.debug(CALL_INFO,2,1,"payloadSize %d\n",payloadSize);
 		entry.decRemainingBytes( payloadSize );
 
 		pkt->setSrcNid( getNodeNum() );
+		pkt->setSrcPid( entry.getSrcCore() );
 		m_dmaSlots[slot].init( pkt, entry.getDestNode() ); 
 
 		SimTime_t delay = 10; 
@@ -250,7 +268,20 @@ void RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 		m_selfLink->send( delay, new SelfEvent( slot, m_sendQ.front() ) );
 
 		if ( 0 == entry.remainingBytes() ) {
-			m_dbg.debug(CALL_INFO,2,1,"send entry DMA requests done\n");
+			m_dbg.debug(CALL_INFO,2,1,"send entry done\n");
+			int srcCore = entry.getSrcCore();
+			if ( NULL == entry.getCmd().completion ) {
+				sendResp( srcCore, new RetvalResp(0) );	
+			} else { 
+				entry.getCmd().completion->count = entry.getCmd().size; 
+				Core& core = m_coreTbl[srcCore];
+				if ( core.m_mwaitCmd && core.m_mwaitCmd->completion == entry.getCmd().completion ) {
+					m_dbg.debug(CALL_INFO,2,1,"completed put matches\n");
+					sendResp( srcCore, new RetvalResp(0) );	
+					delete core.m_mwaitCmd;
+					core.m_mwaitCmd = NULL;
+				}
+			}
 			m_sendQ.pop();
 		}
 	}	
@@ -259,7 +290,7 @@ void RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 void RvmaNicSubComponent::processDMAslots() 
 {
 	if ( m_activeDMAslots && m_dmaSlots[m_firstActiveDMAslot].ready() ) {
-		m_dbg.debug(CALL_INFO,2,1,"packet is ready\n");
+		m_dbg.debug(CALL_INFO,3,1,"packet is ready\n");
 		DMAslot& slot = m_dmaSlots[m_firstActiveDMAslot]; 
 		NetworkPkt* pkt = slot.pkt();
 
@@ -278,7 +309,7 @@ void RvmaNicSubComponent::processDMAslots()
 			m_firstActiveDMAslot = (m_firstActiveDMAslot + 1) % m_dmaSlots.size();
 			--m_activeDMAslots;
 		} else {
-			m_dbg.debug(CALL_INFO,2,1,"can't send packet because network is busy\n");
+			m_dbg.debug(CALL_INFO,3,1,"can't send packet because network is busy\n");
 		}
 	}	
 }	
@@ -293,7 +324,8 @@ void RvmaNicSubComponent::processRVMA( NetworkPkt* pkt )
 	int destPid = pkt->getDestPid();
 	size_t length = pkt->popBytesLeft();
 
-	m_dbg.debug(CALL_INFO,2,1,"destPid=%d rvmaAddr=0x%" PRIx64 " offset=%" PRIu64 " length=%zu\n",
+	m_dbg.debug(CALL_INFO,2,1,"srcNid=%d srcPid=%d destPid=%d rvmaAddr=0x%" PRIx64 " offset=%" PRIu64 " length=%zu\n",
+			pkt->getSrcNid(), pkt->getSrcPid(),
 			pkt->getDestPid(), rvmaAddr, rvmaOffset, length );
 
 	assert( destPid < m_coreTbl.size() );
@@ -303,14 +335,20 @@ void RvmaNicSubComponent::processRVMA( NetworkPkt* pkt )
 	int window = core.findWindow( rvmaAddr );
 
 	if ( window == -1 ) {
-		printf("couldn't find window for virtaddr 0x%" PRIx64 "\n", rvmaAddr);
+		m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find window for virtaddr 0x%" PRIx64 "\n", getNodeNum(), rvmaAddr);
 	} else {
 		m_dbg.debug(CALL_INFO,2,1,"found window %d for virtAddr 0x%" PRIx64 "\n",window,rvmaAddr);
+
 		buffer = core.m_windowTbl[window].recv( rvmaOffset, pkt->payload(), length );
+
+		if ( NULL == buffer ) {
+			m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find buffer for window %d\n", getNodeNum(), window);
+		} 
 	}
 
-	if ( buffer ) { 
-		m_dbg.debug(CALL_INFO,2,1,"epoch complete\n");
+	if ( buffer && buffer->filled ) { 
+		m_dbg.debug(CALL_INFO,2,1,"buffer filled nBytes=%zu virtAddr=0x%" PRIx64 " count=%zu\n",
+										buffer->nBytes, buffer->completion->addr.getSimVAddr(), buffer->completion->count);
 		if ( core.m_mwaitCmd ) {
 			m_dbg.debug(CALL_INFO,2,1,"currently waiting\n");
 			if ( core.m_mwaitCmd->completion == buffer->completion  ) {
@@ -319,6 +357,8 @@ void RvmaNicSubComponent::processRVMA( NetworkPkt* pkt )
 				delete core.m_mwaitCmd;
 				core.m_mwaitCmd = NULL;
 			}
+		} else {
+			core.saveCompleted( buffer );
 		}
 	}
 
