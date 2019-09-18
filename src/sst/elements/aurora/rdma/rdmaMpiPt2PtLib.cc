@@ -64,10 +64,7 @@ void RdmaMpiPt2PtLib::isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes:
 
 	Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
 		m_dbg.debug(CALL_INFO_LAMBDA,"isend",1,2,"returning\n");
-		assert( m_callback == NULL );
-		m_callback = callback;
-		m_retval = retval;
-		m_selfLink->send(0,NULL);
+		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
 	request->type = Hermes::Mpi::Request::Send;
@@ -100,10 +97,7 @@ void RdmaMpiPt2PtLib::irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes:
 
 	Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
 		m_dbg.debug(CALL_INFO_LAMBDA,"irecv",1,2,"returning\n");
-		assert( m_callback == NULL );
-		m_callback = callback;
-		m_retval = retval;
-		m_selfLink->send(0,NULL);
+		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
 	request->type = Hermes::Mpi::Request::Recv;
@@ -142,10 +136,7 @@ void RdmaMpiPt2PtLib::test( Hermes::Mpi::Request* request, Hermes::Mpi::Status* 
 
 	Hermes::Callback* x  = new Hermes::Callback([=]( int retval ) {
 		m_dbg.debug(CALL_INFO_LAMBDA,"test",1,2,"returning\n");
-		assert( m_callback == NULL );
-		m_callback = callback;
-		m_retval = retval;
-		m_selfLink->send(0,NULL);
+		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
 	TestEntry* entry = new TestEntry( request, status, blocking, x );
@@ -158,10 +149,7 @@ void RdmaMpiPt2PtLib::testall( int count, Mpi::Request* request, int* flag, Mpi:
 {
 	Hermes::Callback* x  = new Hermes::Callback([=]( int retval ) {
 		m_dbg.debug(CALL_INFO_LAMBDA,"testall",1,2,"returning\n");
-		assert( m_callback == NULL );
-		m_callback = callback;
-		m_retval = retval;
-		m_selfLink->send(0,NULL);
+		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
 	m_dbg.debug(CALL_INFO,1,2,"count=%d blocking=%s\n",count,blocking?"yes":"no");
@@ -178,10 +166,7 @@ void RdmaMpiPt2PtLib::testany( int count, Mpi::Request* request, int* indx, int*
 {
 	Hermes::Callback* x  = new Hermes::Callback([=]( int retval ) {
 		m_dbg.debug(CALL_INFO_LAMBDA,"testany",1,2,"returning\n");
-		assert( m_callback == NULL );
-		m_callback = callback;
-		m_retval = retval;
-		m_selfLink->send(0,NULL);
+		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
 	m_dbg.debug(CALL_INFO,1,2,"count=%d\n",count);
