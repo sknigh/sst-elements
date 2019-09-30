@@ -62,14 +62,8 @@ Nic::Nic(ComponentId_t id, Params &params) :
     m_linkControl = loadUserSubComponent<Interfaces::SimpleNetwork>( "rtrLink", ComponentInfo::SHARE_NONE, 0 );
     assert( m_linkControl );
 
-
 	m_recvNotifyFunctor = new SimpleNetwork::Handler<Nic>(this,&Nic::recvNotify );
-    assert( m_recvNotifyFunctor );
-	m_linkControl->setNotifyOnReceive( m_recvNotifyFunctor );
-
 	m_sendNotifyFunctor = new SimpleNetwork::Handler<Nic>(this,&Nic::sendNotify );
-    assert( m_sendNotifyFunctor );
-	m_linkControl->setNotifyOnReceive( m_recvNotifyFunctor );
 
     m_linkControl->initialize(params.find<std::string>("rtrPortName","rtr"), link_bw, 2, input_buf_size, output_buf_size );
 
@@ -97,9 +91,7 @@ Nic::Nic(ComponentId_t id, Params &params) :
 		m_nicSC->setCoreLink( i, link );
 		m_toCoreLinks.push_back( link );
 	}
-	m_nicSC->init();
-	m_nicSC->setRecvNotify( std::bind( &Nic::registerRecvNotify, this ) );
-	m_nicSC->setSendNotify( std::bind( &Nic::registerSendNotify, this ) );
+	m_nicSC->init(this);
 
 	m_dbg.verbose(CALL_INFO,1,1,"numberOfCores=%d\n", numCores);
 

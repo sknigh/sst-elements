@@ -21,7 +21,7 @@
 #include <sst/core/output.h>
 #include <sst/core/interfaces/simpleNetwork.h>
 #include <sst/core/link.h>
-#include "include/nicSubComponent.h"
+#include "nic/nicSubComponent.h"
 
 namespace SST {
 namespace Aurora {
@@ -64,13 +64,17 @@ class Nic : public SST::Component  {
 
 	void init( unsigned int phase );
 
-	void registerRecvNotify() {
+	void enableNetNotifier() { 
+		m_dbg.debug(CALL_INFO,2,1,"\n");
 		m_linkControl->setNotifyOnReceive( m_recvNotifyFunctor );
-	}
-	void registerSendNotify() {
 		m_linkControl->setNotifyOnSend( m_sendNotifyFunctor );
 	}
 
+	void disableNetNotifier() { 
+		m_dbg.debug(CALL_INFO,2,1,"\n");
+		m_linkControl->setNotifyOnReceive( NULL );
+		m_linkControl->setNotifyOnSend( NULL );
+	}
 
   private:
 
@@ -80,12 +84,16 @@ class Nic : public SST::Component  {
 
     bool recvNotify(int vc) {
         m_dbg.debug(CALL_INFO,2,1,"network event available vc=%d\n",vc);
-		return m_nicSC->recvNotify( vc );
+		m_linkControl->setNotifyOnSend( NULL );
+		m_nicSC->networkReady( vc );
+		return false;
     }
 
     bool sendNotify(int vc) {
         m_dbg.debug(CALL_INFO,2,1,"network event available vc=%d\n",vc);
-		return m_nicSC->sendNotify( vc );
+		m_linkControl->setNotifyOnReceive( NULL );
+		m_nicSC->networkReady( vc );
+		return false; 
     }
 
 
