@@ -102,6 +102,15 @@ class RvmaLib : public HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >
 		doEnter( cmd, callback );
 	}
 
+	void postOneTimeBuffer( Hermes::RVMA::VirtAddr vAddr, size_t threshold, Hermes::RVMA::EpochType type,
+				Hermes::MemAddr bufAddr, size_t size, Hermes::RVMA::Completion* completion, Hermes::Callback* callback )  
+	{
+		dbg().debug(CALL_INFO,1,2,"\n");
+		NicCmd* cmd = new PostOneTimeBufferCmd( vAddr, threshold, type, bufAddr, size, completion );
+		setRetvalCallback();
+		doEnter( cmd, callback );
+	}
+
     void put( Hermes::MemAddr srcAddr, size_t size, Hermes::ProcAddr dest, Hermes::RVMA::VirtAddr virtAddr,
 		   						size_t offset, Hermes::RVMA::Completion* comp, Hermes::Callback* callback )
 	{
