@@ -11,6 +11,8 @@ comp_LTLIBRARIES = libaurora.la
 libaurora_la_SOURCES = \
 	nic/nic.cc\
 	nic/nic.h\
+	nic/nicSubComponent.cc\
+	nic/nicSubComponent.h\
 	rdma/rdmaMpiPt2PtLib.cc\
 	rdma/rdmaMpiPt2PtLib.h\
 	rdma/rdmaNic.cc\
