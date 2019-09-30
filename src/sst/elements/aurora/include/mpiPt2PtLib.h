@@ -40,6 +40,17 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
     	Params modParams;
 		m_misc = dynamic_cast< Hermes::Misc::Interface*>( loadAnonymousSubComponent<Hermes::Interface>( "aurora.misc", "", 0, ComponentInfo::SHARE_NONE, modParams ) );
     	assert(m_misc);
+
+		int defaultDelay = params.find<int>("defaultDelay",0);
+		m_initDelay = params.find<int>("initDelay",defaultDelay);
+		m_sendDelay = params.find<int>("sendDelay",defaultDelay);
+		m_recvDelay = params.find<int>("recvDelay",defaultDelay);
+		m_isendDelay = params.find<int>("isendDelay",defaultDelay);
+		m_irecvDelay = params.find<int>("irecvDelay",defaultDelay);
+		m_testDelay = params.find<int>("testDelay",defaultDelay);
+		m_testallDelay = params.find<int>("testallDelay",defaultDelay);	
+		m_testanyDelay = params.find<int>("testanyDelay",defaultDelay);
+		m_matchDelay = params.find<int>("matchDelay",0);
 	}
 
 	void setup() {
@@ -57,6 +68,14 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
     	m_dbg.debug(CALL_INFO,1,2,"buf=0x%" PRIx64 " count=%d dataSize=%d dest=%d tag=%d comm=%d\n",
             buf.getSimVAddr(),count,Mpi::sizeofDataType( dataType ), dest, tag, comm );
 
+		Callback* cb = new Callback;
+		*cb = std::bind( &MpiPt2Pt::_send, this, buf, count, dataType, dest, tag, comm, callback );
+		m_selfLink->send( m_sendDelay,new SelfEvent(cb) );
+	}
+
+	void _send(const Hermes::MemAddr& buf, int count, Mpi::DataType dataType, int dest, int tag,
+        Hermes::Mpi::Comm comm, Hermes::Callback* callback )
+	{
     	Callback *cb = new Callback( [=](int) {
         	m_dbg.debug(CALL_INFO_LAMBDA,"send",2,2,"back from isend\n");
         	Callback* cb = new Callback( [=](int retval ) {
@@ -78,7 +97,14 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	{
     	m_dbg.debug(CALL_INFO,1,2,"buf=0x%" PRIx64 " count=%d dataSize=%d src=%d tag=%d comm=%d\n",
             buf.getSimVAddr(),count, Mpi::sizeofDataType( dataType ), src, tag, comm );
+		Callback* cb = new Callback;
+		*cb = std::bind( &MpiPt2Pt::_recv, this, buf, count, dataType, src, tag, comm, status, callback );
+		m_selfLink->send( m_recvDelay,new SelfEvent(cb) );
+	}
 
+	void _recv(const Hermes::MemAddr& buf, int count, Mpi::DataType dataType, int src, int tag,
+        Hermes::Mpi::Comm comm, Hermes::Mpi::Status* status, Hermes::Callback* callback )
+	{
     	Callback* cb = new Callback( [=](int) {
         	m_dbg.debug(CALL_INFO_LAMBDA,"recv",2,2,"back from irecv\n");
         	Callback* cb = new Callback( [=]( int retval ) {
@@ -95,6 +121,16 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	}
 
   protected:
+
+	int m_initDelay;
+	int m_sendDelay;
+	int m_recvDelay;
+	int m_isendDelay;
+	int m_irecvDelay;
+	int m_testDelay;
+	int m_testallDelay;
+	int m_testanyDelay;
+	int m_matchDelay;
 
 	template< class ENTRY >
     Hermes::ProcAddr getProcAddr( ENTRY* entry ) {
@@ -137,7 +173,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	class SelfEvent : public SST::Event { 
 	  public:
-		SelfEvent( Hermes::Callback* callback, int retval ) : callback(callback), retval(retval) {} 
+		SelfEvent( Hermes::Callback* callback, int retval = 0 ) : callback(callback), retval(retval) {} 
  		Hermes::Callback* callback;
 		int retval;
 		NotSerializable(SelfEvent);
@@ -165,12 +201,8 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
         Entry( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int tag,
                 Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request ) :
             buf(buf), count(count), dataType(dataType), tag(tag), comm(comm), request(request), doneFlag(false)
-        {
-            //printf("%s() %p\n",__func__,this);
-        }
-        ~Entry() {
-            //printf("%s() %p\n",__func__,this);
-        }
+        { }
+        ~Entry() { }
 
         Hermes::Mpi::Status status;
         bool isDone() { return doneFlag; }
@@ -303,7 +335,6 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
     Output  m_dbg;
 
 	size_t m_shortMsgLength;
-
 
     Hermes::Mpi::Request m_request;
     Hermes::Mpi::Status  m_status;
