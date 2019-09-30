@@ -47,8 +47,8 @@ class HostLib : public Interface
     	m_blockingCmd.resize( NicCmd::NumCmds );
 
     	for ( int i = 0; i < NicCmd::NumCmds; i++ ) {
-        	m_enterDelay[i] = 10;
-        	m_returnDelay[i] = 10;
+			m_enterDelay[i] = 0;
+			m_returnDelay[i] = 0;
         	m_blockingCmd[i] = true;
     	}
 
