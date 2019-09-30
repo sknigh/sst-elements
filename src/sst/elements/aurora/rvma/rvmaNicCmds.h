@@ -29,6 +29,7 @@ namespace RVMA {
         NAME(WinGetEpoch)   \
         NAME(WinGetBufPtrs)   \
         NAME(PostBuffer)   \
+        NAME(PostOneTimeBuffer)   \
         NAME(Put)   \
         NAME(Mwait)   \
         NAME(NumCmds)  \
@@ -154,6 +155,26 @@ class PostBufferCmd : public NicCmd {
 	Hermes::RVMA::Window window;
 
     NotSerializable(PostBufferCmd);
+};
+
+class PostOneTimeBufferCmd : public NicCmd {
+  public:
+	PostOneTimeBufferCmd() {}
+
+	PostOneTimeBufferCmd( Hermes::RVMA::VirtAddr winAddr, size_t threshold, Hermes::RVMA::EpochType type,
+		Hermes::MemAddr bufAddr, size_t size, Hermes::RVMA::Completion* completion ) :
+		NicCmd(PostOneTimeBuffer), winAddr(winAddr), threshold(threshold), type(type), bufAddr(bufAddr), size(size), completion(completion)
+	{}
+
+	Hermes::RVMA::VirtAddr winAddr;
+	size_t threshold;
+	Hermes::RVMA::EpochType type;
+
+	Hermes::MemAddr bufAddr;
+	size_t size;
+	Hermes::RVMA::Completion* completion;
+
+    NotSerializable(PostOneTimeBufferCmd);
 };
 
 class MwaitCmd : public NicCmd {
