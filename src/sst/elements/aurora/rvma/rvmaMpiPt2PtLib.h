@@ -72,13 +72,17 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 	virtual void testany( int count, Mpi::Request*, int* indx, int* flag, Mpi::Status*, bool blocking, Callback* );
 
   private:
+	void _init( int* numRanks, int* myRank, Hermes::Callback* );
+    void _isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType, int dest, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
+    void _irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType ,int src, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
+    void _test( Hermes::Mpi::Request*, Hermes::Mpi::Status*, bool blocking, Hermes::Callback* );
+	void _testall( int count, Mpi::Request*, int* flag, Mpi::Status*, bool blocking, Callback* );
+	void _testany( int count, Mpi::Request*, int* indx, int* flag, Mpi::Status*, bool blocking, Callback* );
 
     struct RvmaEntryData {
-		RvmaEntryData() : state(New) {}
+		RvmaEntryData() {}
 		Hermes::RVMA::VirtAddr rvmaAddr;
-		Hermes::RVMA::Window winId;
 		Hermes::RVMA::Completion completion;
-		enum  {New,GotGo} state;
     };
 
     typedef SendEntryBase<RvmaEntryData> SendEntry;
@@ -99,7 +103,9 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 	void poll( TestBase* );
 	void processTest( TestBase*, int retval );
 	void processMsg( Hermes::RVMA::Completion*, Hermes::Callback* );
-	RecvEntry* findPostedRecv( MsgHdr* );
+
+	void findPostedRecv( MsgHdr* , std::function<void(RecvEntry*)> );
+
 	void mallocSendBuffers( Hermes::Callback*, int retval );
 	void mallocRecvBuffers( Hermes::Callback*, int retval );
 	void postRecvBuffer( Hermes::Callback*, int count, int retval );
@@ -112,7 +118,7 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 	void processSendQ(Hermes::Callback*, int );
 	void processRecvQ(Hermes::Callback*, int );
 
-	void processMatch( Hermes::MemAddr& msg, RecvEntry* entry, Hermes::Callback* callback );
+	void processMatch( const Hermes::MemAddr& msg, RecvEntry* entry, Hermes::Callback* callback );
 	void processGoMsg( Hermes::MemAddr msg, Hermes::Callback* callback );
 	void makeProgress( Hermes::Callback* );
 
@@ -135,6 +141,7 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 
 	RecvEntry* m_pendingLongEntry;
 	std::deque<SendEntry*> m_pendingLongPut;
+	int m_longPutWinAddr;
 };
 
 }
