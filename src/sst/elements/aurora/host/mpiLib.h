@@ -120,11 +120,12 @@ class MpiLib : public Hermes::MP::Interface
 
     void selfLinkHandler( Event* event ) {
 		assert( m_retFunctor );
+		MP::Functor* functor = m_retFunctor;
 		m_dbg.debug(CALL_INFO,1,1,"\n");
-		if ( (*m_retFunctor)( 0 ) ) {
-       		delete m_retFunctor;
-		}
 		m_retFunctor = NULL;
+		if ( (*functor)( 0 ) ) {
+       		delete functor;
+		}
 	}
 
 	Mpi::DataType convertDataType( MP::PayloadDataType datatype ) {

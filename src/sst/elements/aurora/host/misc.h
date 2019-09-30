@@ -40,7 +40,6 @@ class Misc : public Hermes::Misc::Interface
     Misc(ComponentId_t id, Params&) : Interface(id), m_os(NULL), m_callback(NULL) { 
 		std::ostringstream tmp;
 		tmp << this << "-AuroraMiscSelfLink";
-		//printf("Misc::%s() %s\n",__func__,tmp.str().c_str());
 		m_selfLink = configureSelfLink(tmp.str(), "1 ns", new Event::Handler<Misc>(this,&Misc::selfLinkHandler));
 	}
     ~Misc() {}
@@ -69,7 +68,6 @@ class Misc : public Hermes::Misc::Interface
     }
 
     void malloc( Hermes::MemAddr* addr, size_t length, bool backed, Hermes::Callback* callback) { 
-		//printf("Misc::%s() length=%zu\n",__func__,length);
 		assert( m_callback == NULL );
     	m_os->malloc( addr, length, backed );
 		m_callback = callback;
@@ -79,7 +77,6 @@ class Misc : public Hermes::Misc::Interface
   private:
 
 	void selfLinkHandler( Event* event ) {
-		//printf("Misc::%s()\n",__func__);
 		Hermes::Callback* tmp = m_callback;
 		m_callback = NULL;
 		(*tmp)(0);
