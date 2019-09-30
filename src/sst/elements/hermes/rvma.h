@@ -48,6 +48,9 @@ class Interface : public Hermes::Interface {
 	virtual void winGetEpoch( RVMA::Window, int*, Callback* ) = 0;
 	virtual void winGetBufPtrs( RVMA::Window, Completion*, int count, Callback* ) = 0;
 	virtual void put( Hermes::MemAddr, size_t size, ProcAddr dest,  RVMA::VirtAddr, size_t offset, Completion*, Callback* ) = 0;
+
+	virtual void postOneTimeBuffer( RVMA::VirtAddr, size_t threshold, RVMA::EpochType, Hermes::MemAddr, size_t size, Completion*, Callback* ) = 0;
+
 	virtual void postBuffer( Hermes::MemAddr, size_t size, Completion*, RVMA::Window, Callback* ) = 0;
 	virtual void mwait( Completion*, Callback* ) = 0;
 
