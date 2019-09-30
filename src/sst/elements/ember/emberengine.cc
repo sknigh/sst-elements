@@ -40,12 +40,11 @@ EmberEngine::EmberEngine(SST::ComponentId_t id, SST::Params& params) :
 	uint32_t mask = (uint32_t) params.find("verboseMask", 0);
 	m_jobId = params.find("jobId", -1);
 
-        
 	std::ostringstream prefix;
 	prefix << "@t:" << m_jobId << ":EmberEngine:@p:@l: ";
 
 	output.init( prefix.str(), verbosity, mask, Output::STDOUT);
-    
+
     Params osParams = params.find_prefix_params("os.");
 
     std::string osName = osParams.find<std::string>("name");
@@ -134,7 +133,7 @@ EmberEngine::ApiMap EmberEngine::createApiMap( OS* os,
     ApiMap tmp;
 
     Params apiList = params.find_prefix_params( "api." );
-    
+
     int apiNum = 0;
     while ( 1 ) {
 
@@ -149,9 +148,9 @@ EmberEngine::ApiMap EmberEngine::createApiMap( OS* os,
         std::string moduleName = apiParams.find<std::string>( "module" );
         assert( ! moduleName.empty() );
 
-        Params modParams = apiParams.find_prefix_params( "params." );
-
         output.verbose(CALL_INFO, 2, ENGINE_MASK, "moduleName=%s\n", moduleName.c_str());
+
+        Params modParams = params.find_prefix_params( moduleName + "." );
 
         Hermes::Interface* api = loadAnonymousSubComponent<Interface>( moduleName, "", 0, ComponentInfo::SHARE_NONE, modParams );
         assert( tmp.find( api->getName() ) == tmp.end() );
