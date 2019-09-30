@@ -17,7 +17,8 @@
 #ifndef COMPONENTS_AURORA_RDMA_NIC_H
 #define COMPONENTS_AURORA_RDMA_NIC_H
 
-#include "include/nicSubComponent.h"
+#include "nic/nic.h"
+#include "nic/nicSubComponent.h"
 #include "sst/elements/hermes/rdma.h"
 
 #include <queue>
@@ -53,14 +54,10 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
     RdmaNicSubComponent( Component* owner, Params& params ) : NicSubComponent(owner) {} 
     RdmaNicSubComponent( ComponentId_t id, Params& params );
 	void setup();
-	void finish();
 
 	void handleEvent( int core, Event* event );
     bool clockHandler( Cycle_t );
-
 	void setNumCores(int);
-	void setRecvNotify( std::function<void()> func ) { m_recvNotify = func; }
-    void setSendNotify( std::function<void()> func ) { m_sendNotify = func; }
 
   private:
 	static const char* protoNames[];
@@ -267,7 +264,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	};
 
 
-	Link* m_selfLink;
 	std::vector< DMAslot > m_dmaSlots;
 	int m_firstActiveDMAslot;
 	int m_firstAvailDMAslot;
@@ -436,43 +432,11 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 	std::vector<Core>   m_coreTbl;
 
-	bool recvNotify( int vc ) {
-		m_dbg.debug(CALL_INFO,1,2,"\n");
-		if ( ! m_clocking ) { startClocking(); }
-		return false;
-	}
-
-	bool sendNotify( int vc ) {
-		m_dbg.debug(CALL_INFO,1,2,"\n");
-		if ( ! m_clocking ) { startClocking(); }
-		return false;
-	}
-
-	void startClocking() {
-
-		if ( m_clocking != false ) {
-			m_dbg.debug(CALL_INFO,1,2,"\n");
-			assert(0);
-		}
-		m_clocking = true;
-		Cycle_t cycle = reregisterClock( m_timeConverter, m_clockHandler );
-		m_dbg.debug(CALL_INFO,1,2,"start clocking cycle %" PRIu64 "\n",cycle);
-	}
-
-	void stopClocking( Cycle_t cycle ) {
-        m_dbg.debug(CALL_INFO,1,2,"stop clocking cycle %" PRIu64 "\n",cycle);
-        m_clocking = false;
-	}
-
-	void registerRecvNotify() { m_recvNotify(); } 
-	void registerSendNotify() { m_sendNotify(); }
-
 	typedef void (RdmaNicSubComponent::*MemFuncPtr)( int, Event* );
 
 	std::vector<MemFuncPtr> m_cmdFuncTbl;
 
 	static const char *m_cmdName[];
-	Output m_dbg;
 
 	int m_vc;
 	std::queue< SendEntry* > m_sendQ;
@@ -481,14 +445,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	int m_streamIdCnt;
 	int m_availRecvDmaEngines;
 	size_t m_clockCnt;
-
-	bool m_clocking;
-    UnitAlgebra                 m_clockRate;
-	Clock::Handler<RdmaNicSubComponent>*        m_clockHandler;
-	TimeConverter* m_timeConverter;
-
-	std::function<void()> m_recvNotify;
-	std::function<void()> m_sendNotify;
 };
 
 }

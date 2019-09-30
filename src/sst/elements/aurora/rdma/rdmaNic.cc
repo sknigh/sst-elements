@@ -30,8 +30,8 @@ const char* RdmaNicSubComponent::m_cmdName[] = {
 };
 const char* RdmaNicSubComponent::protoNames[] = {"Message","RdmaRead","RdmaWrite"};
 
-RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id),
-   	m_vc(0), m_firstActiveDMAslot(0), m_firstAvailDMAslot(0), m_activeDMAslots(0), m_streamIdCnt(0), m_availRecvDmaEngines(0), m_clockCnt(0), m_clocking(false)
+RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params),
+   	m_vc(0), m_firstActiveDMAslot(0), m_firstAvailDMAslot(0), m_activeDMAslots(0), m_streamIdCnt(0), m_availRecvDmaEngines(0), m_clockCnt(0)
 {
 
    if ( params.find<bool>("print_all_params",false) ) {
@@ -55,19 +55,6 @@ RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : N
 
 	m_dmaSlots.resize( params.find<int>("numDmaSlots",32) );
 	m_availRecvDmaEngines =  params.find<int>("numDmaSlots",32 );
-
-    m_selfLink = configureSelfLink("Nic::selfLink", "1 ns",
-       new Event::Handler<RdmaNicSubComponent>(this,&RdmaNicSubComponent::handleSelfEvent));
-    assert( m_selfLink );
-
-    m_clockRate = params.find<UnitAlgebra>("clock");
-    m_dbg.verbose(CALL_INFO,1,1,"clockRate=%s\n", m_clockRate.toString().c_str());
-
-    if ( m_clockRate.getRoundedValue() ) {
-        m_clockHandler = new Clock::Handler<RdmaNicSubComponent>(this,&RdmaNicSubComponent::clockHandler);
-		m_timeConverter = registerClock( m_clockRate, m_clockHandler );
-		m_clocking = true;
-    }
 }
 
 void RdmaNicSubComponent::setup()
@@ -75,14 +62,6 @@ void RdmaNicSubComponent::setup()
     char buffer[100];
     snprintf(buffer,100,"@t:%d:Aurora::RDMA::Nic::@p():@l ", getNodeNum());
     m_dbg.setPrefix(buffer);
-}
-void RdmaNicSubComponent::finish()
-{
-	Cycle_t cycle  = getNextClockCycle(m_timeConverter);
-
-#if 0
-	printf("RdmaNicSubComponent::%s %zu %" PRIu64 " %f\n",__func__,m_clockCnt,cycle,(float)m_clockCnt/cycle);
-#endif
 }
 
 void RdmaNicSubComponent::setNumCores( int num ) {
@@ -107,13 +86,10 @@ bool RdmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 	++m_clockCnt;
 
 	bool stop = true;
-	bool setRecvNotify = false;
-	bool setSendNotify = false;
 
 	if ( m_availRecvDmaEngines ) {
 		if ( processRecv() ) {
     		m_dbg.debug(CALL_INFO,1,2,"nothing to receive\n");
-			setRecvNotify = true;
 		} else {
 			stop = false;	
 		}
@@ -126,7 +102,6 @@ bool RdmaNicSubComponent::clockHandler( Cycle_t cycle ) {
     	m_dbg.debug(CALL_INFO,1,2,"no send work\n");
 	} else if ( ret1 == 2 || ret2 == 2 ) {
     	m_dbg.debug(CALL_INFO,1,2,"blocked on send\n");
-		setSendNotify= true;
 	} else {
 		stop = false;	
     	m_dbg.debug(CALL_INFO,1,2,"check send work next clock\n");
@@ -140,14 +115,6 @@ bool RdmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 
 	if (stop) {
 		stopClocking( cycle );
-		if ( setSendNotify ) {
-    		m_dbg.debug(CALL_INFO,1,2,"set send notify\n");
-			registerSendNotify();
-		}
-		if ( setRecvNotify ) {
-    		m_dbg.debug(CALL_INFO,1,2,"set recv notify\n");
-			registerRecvNotify();
-		}
 	}
 	return stop; 
 }
