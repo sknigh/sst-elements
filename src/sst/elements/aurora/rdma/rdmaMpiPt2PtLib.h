@@ -64,14 +64,14 @@ class RdmaMpiPt2PtLib : public MpiPt2Pt
 		m_rdma->setOS(os);
    	}
 
-	void init( int* numRanks, int* myRank, Hermes::Callback* );
-    void isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType, int dest, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
-    void irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType ,int src, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
-    void test( Hermes::Mpi::Request*, Hermes::Mpi::Status*, bool blocking, Hermes::Callback* );
-	virtual void testall( int count, Mpi::Request*, int* flag, Mpi::Status*, bool blocking, Callback* );
-	virtual void testany( int count, Mpi::Request*, int* indx, int* flag, Mpi::Status*, bool blocking, Callback* );
+	void _init( int* numRanks, int* myRank, Hermes::Callback* );
+    void _isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType, int dest, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
+    void _irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType ,int src, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
 
   private:
+
+	size_t getMsgHdrSize() { return sizeof(MsgHdr); }
+	Hermes::RDMA::Interface& rdma() { return *m_rdma; }
 
 	struct MsgHdr : public MsgHdrBase {
 		enum Type { Match, Ack } type;
@@ -83,44 +83,39 @@ class RdmaMpiPt2PtLib : public MpiPt2Pt
 		Hermes::RDMA::MemRegionId memId;
 	};
 
-	typedef SendEntryBase<RdmaEntryData> SendEntry;
-	typedef RecvEntryBase<RdmaEntryData> RecvEntry;
-	typedef TestEntryBase<RdmaEntryData> TestEntry;
-	typedef TestallEntryBase<RdmaEntryData> TestallEntry;
-	typedef TestanyEntryBase<RdmaEntryData> TestanyEntry;
+	struct SendEntry : public SendEntryBase {
+		SendEntry( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int dest, int tag,
+                Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request ) : SendEntryBase( buf, count, dataType, dest, tag, comm, request) {}
+		RdmaEntryData extra;
+	};
 
-	void waitForLongAck( Hermes::Callback*, SendEntry*, int retval );
-	void sendMsg( Hermes::ProcAddr&, Hermes::MemAddr&, size_t length, Hermes::Callback* );
+	struct RecvEntry : public RecvEntryBase {
+		RecvEntry( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int src, int tag,
+				Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request ) : RecvEntryBase( buf, count, dataType, src, tag, comm, request) {}
+		RdmaEntryData extra;
+	};
+
+	typedef TestEntryBase TestEntry;
+	typedef TestallEntryBase TestallEntry;
+	typedef TestanyEntryBase TestanyEntry;
+
 	void processTest( TestBase*, int retval );
-	void checkMsgAvail( Hermes::Callback*, int retval );
 	void processMsg( Hermes::RDMA::Status&, Hermes::Callback* );
-	RecvEntry* findPostedRecv( MsgHdr* );
-	void mallocSendBuffers( Hermes::Callback*, int retval );
-	void mallocRecvBuffers( Hermes::Callback*, int retval );
+	void sendMsg( Hermes::ProcAddr&, Hermes::MemAddr&, size_t length, Hermes::Callback* );
 	void postRecvBuffer( Hermes::Callback*, int count, int retval );
 	void repostRecvBuffer( Hermes::MemAddr, Hermes::Callback* );
-	void processSendEntry( Hermes::Callback*, SendEntry*  );
-
-	Hermes::RDMA::Status* checkUnexpected( RecvEntry* );
-	void processSendQ(Hermes::Callback*, int );
 	void processRecvQ(Hermes::Callback*, int );
-
-	void processMatch( Hermes::RDMA::Status& status, RecvEntry* entry, Hermes::Callback* callback );
-
+	void processMatch( const Hermes::RDMA::Status status, RecvEntryBase* entry, Hermes::Callback* callback );
 	void makeProgress( Hermes::Callback* );
-	Hermes::RDMA::Interface& rdma() { return *m_rdma; }
+	Hermes::RDMA::Status* checkUnexpected( RecvEntryBase* );
 
-	std::deque< RecvEntry* > m_postedRecvs;
-	std::queue< SendEntry* > m_postedSends;
+	void waitForLongAck( Hermes::Callback*, SendEntry*, int retval );
+	void checkMsgAvail( Hermes::Callback*, int retval );
+	void processSendEntry( Hermes::Callback*, SendEntryBase* );
 
-	Hermes::RDMA::Interface* m_rdma;
-
-	Hermes::RDMA::RqId m_rqId;
-	Hermes::RDMA::Status m_rqStatus;
-	Hermes::MemAddr m_recvBuff;
-	Hermes::MemAddr m_sendBuff;
-	int m_numRecvBuffers;
-	int m_numSendBuffers;
+	Hermes::RDMA::Interface*	m_rdma;
+	Hermes::RDMA::RqId 			m_rqId;
+	Hermes::RDMA::Status 		m_rqStatus;
 
 	std::deque< Hermes::RDMA::Status* > m_unexpectedRecvs;
 };
