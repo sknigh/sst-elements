@@ -64,32 +64,34 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 		m_rvma->setOS(os);
    	}
 
-	void init( int* numRanks, int* myRank, Hermes::Callback* );
-    void isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType, int dest, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
-    void irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType ,int src, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
-    void test( Hermes::Mpi::Request*, Hermes::Mpi::Status*, bool blocking, Hermes::Callback* );
-	virtual void testall( int count, Mpi::Request*, int* flag, Mpi::Status*, bool blocking, Callback* );
-	virtual void testany( int count, Mpi::Request*, int* indx, int* flag, Mpi::Status*, bool blocking, Callback* );
-
   private:
+	size_t getMsgHdrSize() { return sizeof(MsgHdr); }
+	Hermes::RVMA::Interface& rvma() { return *m_rvma; }
+
 	void _init( int* numRanks, int* myRank, Hermes::Callback* );
     void _isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType, int dest, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
     void _irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType ,int src, int tag, Hermes::Mpi::Comm, Hermes::Mpi::Request*, Hermes::Callback* );
-    void _test( Hermes::Mpi::Request*, Hermes::Mpi::Status*, bool blocking, Hermes::Callback* );
-	void _testall( int count, Mpi::Request*, int* flag, Mpi::Status*, bool blocking, Callback* );
-	void _testany( int count, Mpi::Request*, int* indx, int* flag, Mpi::Status*, bool blocking, Callback* );
 
     struct RvmaEntryData {
-		RvmaEntryData() {}
 		Hermes::RVMA::VirtAddr rvmaAddr;
 		Hermes::RVMA::Completion completion;
     };
 
-    typedef SendEntryBase<RvmaEntryData> SendEntry;
-    typedef RecvEntryBase<RvmaEntryData> RecvEntry;
-    typedef TestEntryBase<RvmaEntryData> TestEntry;
-    typedef TestallEntryBase<RvmaEntryData> TestallEntry;
-    typedef TestanyEntryBase<RvmaEntryData> TestanyEntry;
+	struct SendEntry : public SendEntryBase {
+        SendEntry( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int dest, int tag,
+                Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request ) : SendEntryBase( buf, count, dataType, dest, tag, comm, request) {}
+		RvmaEntryData extra;
+	};
+
+    struct RecvEntry : public RecvEntryBase {
+        RecvEntry( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int src, int tag,
+                Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request ) : RecvEntryBase( buf, count, dataType, src, tag, comm, request) {}
+		RvmaEntryData extra;
+	};
+
+    typedef TestEntryBase TestEntry;
+    typedef TestallEntryBase TestallEntry;
+    typedef TestanyEntryBase TestanyEntry;
 
 	struct MsgHdr : public MsgHdrBase {
 		Hermes::ProcAddr procAddr;
@@ -98,46 +100,29 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 		SendEntry* sendEntry;
 	};
 
-	void waitForLongGo( Hermes::Callback*, SendEntry*, int retval );
-	void sendMsg( Hermes::ProcAddr&, Hermes::MemAddr&, size_t length, Hermes::Callback* );
-	void poll( TestBase* );
 	void processTest( TestBase*, int retval );
 	void processMsg( Hermes::RVMA::Completion*, Hermes::Callback* );
-
-	void findPostedRecv( MsgHdr* , std::function<void(RecvEntry*)> );
-
-	void mallocSendBuffers( Hermes::Callback*, int retval );
-	void mallocRecvBuffers( Hermes::Callback*, int retval );
+	void sendMsg( Hermes::ProcAddr&, Hermes::MemAddr&, size_t length, Hermes::Callback* );
 	void postRecvBuffer( Hermes::Callback*, int count, int retval );
 	void repostRecvBuffer( Hermes::MemAddr, Hermes::Callback* );
-	void processSendEntry( Hermes::Callback*, SendEntry*  );
-	void foobar( RecvEntry* entry, Hermes::Callback* callback );
-
+	void processSendEntry( Hermes::Callback*, SendEntryBase*  );
+	void processRecvQ(Hermes::Callback*, int );
+	void processMatch( const Hermes::MemAddr& msg, RecvEntryBase* entry, Hermes::Callback* callback );
+	void makeProgress( Hermes::Callback* );
 	Hermes::MemAddr checkUnexpected( RecvEntry* );
 
-	void processSendQ(Hermes::Callback*, int );
-	void processRecvQ(Hermes::Callback*, int );
-
-	void processMatch( const Hermes::MemAddr& msg, RecvEntry* entry, Hermes::Callback* callback );
 	void processGoMsg( Hermes::MemAddr msg, Hermes::Callback* callback );
-	void makeProgress( Hermes::Callback* );
-
-	std::deque< RecvEntry* > m_postedRecvs;
-	std::queue< SendEntry* > m_postedSends;
+	void waitForLongGo( Hermes::Callback*, SendEntry*, int retval );
+	void poll( TestBase* );
+	void recvCheckMatch( RecvEntry* entry, Hermes::Callback* callback );
 
 	Hermes::RVMA::VirtAddr m_windowAddr;
 	Hermes::RVMA::Window   m_windowId;
 	std::queue<Hermes::RVMA::Completion*> m_completionQ;
 
-	Hermes::MemAddr m_recvBuff;
-	Hermes::MemAddr m_sendBuff;
-	int m_numRecvBuffers;
-	int m_numSendBuffers;
+	Hermes::RVMA::Interface* m_rvma;
 
 	std::deque< Hermes::MemAddr > m_unexpectedRecvs;
-
-	Hermes::RVMA::Interface& rvma() { return *m_rvma; }
-	Hermes::RVMA::Interface* m_rvma;
 
 	RecvEntry* m_pendingLongEntry;
 	std::deque<SendEntry*> m_pendingLongPut;
