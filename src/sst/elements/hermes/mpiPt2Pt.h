@@ -32,9 +32,18 @@ struct Status {
 	int tag;
 };
 
+class RequestData {
+  protected:
+	RequestData() {}
+	RequestData( const RequestData & ) {}
+	RequestData &operator=(const RequestData& ) { assert(0); }  
+  public:
+	virtual ~RequestData() = default; 
+};
+
 struct Request {
 	enum Type { Send, Recv } type;
-	void* entry;
+	RequestData *entry;
 };
 
 enum DataType { Char, Int, Long, Float, Double, Complex };
