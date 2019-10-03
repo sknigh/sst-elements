@@ -257,6 +257,8 @@ void RvmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 	hdr->procAddr.node =  os().getNodeNum(); 
 	hdr->procAddr.pid =  procAddr.pid;
 
+	int delay = 0;
+
 	m_dbg.debug(CALL_INFO,1,2,"node=%d pid=%d\n",procAddr.node,procAddr.pid);
 	if ( bytes <= m_shortMsgLength ) {
 		m_dbg.debug(CALL_INFO,1,2,"short message\n");
@@ -266,16 +268,24 @@ void RvmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 		}	
 		entry->doneFlag = true;
 
+		delay = calcMemcpyDelay( bytes );
+
 	} else {
 
 		m_dbg.debug(CALL_INFO,1,2,"long message key=%p\n",entry);
 		hdr->sendEntry = entry;
 		bytes = 0;
 	}
-	sendMsg( procAddr, m_sendBuff, sizeof(MsgHdr) + bytes, callback );
+
+	Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
+		m_dbg.debug(CALL_INFO_LAMBDA,"processSendEntry",1,2," memcpy delay returning\n");
+		sendMsg( procAddr, m_sendBuff, sizeof(MsgHdr) + bytes, callback );
+	});
+
+	m_selfLink->send(delay,new SelfEvent(x) );
 }
 
-void RvmaMpiPt2PtLib::sendMsg( Hermes::ProcAddr& procAddr, Hermes::MemAddr& addr, size_t length, Hermes::Callback* callback )
+void RvmaMpiPt2PtLib::sendMsg( Hermes::ProcAddr procAddr, Hermes::MemAddr& addr, size_t length, Hermes::Callback* callback )
 {
 	m_dbg.debug(CALL_INFO,1,2,"destNid=%d destPid=%d addr=0x%" PRIx64 " length=%zu\n",
 				procAddr.node, procAddr.pid, addr.getSimVAddr(), length  );
@@ -356,7 +366,14 @@ void RvmaMpiPt2PtLib::processMatch( const Hermes::MemAddr& msg, RecvEntryBase* _
 		}
 		entry->doneFlag = true;
 
-		repostRecvBuffer( msg, callback );
+		Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
+			m_dbg.debug(CALL_INFO_LAMBDA,"processMatch",1,2,"memcpy delay returning\n");
+
+			repostRecvBuffer( msg, callback );
+		});
+
+		m_selfLink->send( calcMemcpyDelay( bytes ), new SelfEvent(x) );
+
 	} else {
 
 		m_dbg.debug(CALL_INFO,1,2,"found posted long recv bytes=%zu\n", bytes);

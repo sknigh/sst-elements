@@ -29,7 +29,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
   public:
 
-	MpiPt2Pt(Component* owner, Params& params) : Interface(owner) 
+	MpiPt2Pt(Component* owner, Params& params) : Interface(owner), m_memcpyDelay(0)
 	{
 		m_shortMsgLength = params.find<size_t>("shortMsgLength",4096);
 		m_numRecvBuffers = params.find<int>("numRecvBuffers",32);
@@ -53,6 +53,10 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 		m_testallDelay = params.find<int>("testallDelay",defaultDelay);	
 		m_testanyDelay = params.find<int>("testanyDelay",defaultDelay);
 		m_matchDelay = params.find<int>("matchDelay",0);
+		double bw = params.find<UnitAlgebra>("memcpyBandwidth","0").getRoundedValue();
+		if ( bw ) {
+			m_memcpyDelay = ((1/bw) * 1000000000); 
+		}
 	}
 
 	void setup() {
@@ -123,6 +127,11 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	}
 
   protected:
+
+	uint64_t calcMemcpyDelay( size_t bytes ) {
+		 m_dbg.debug(CALL_INFO,1,2,"memcpyDelay for %zu bytes is %" PRIu64 " ns.\n",bytes,  (uint64_t) bytes * m_memcpyDelay);
+		return bytes * m_memcpyDelay;
+	}
 
 	virtual void _init( int* numRanks, int* myRank, Hermes::Callback* callback ) = 0;
 	virtual void _isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int dest, int tag,
@@ -435,16 +444,14 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	void processSendQ( Hermes::Callback* callback, int retval )
 	{
 		if ( ! m_postedSends.empty() ) {
-			SendEntryBase* entry = m_postedSends.front();
 			m_dbg.debug(CALL_INFO,1,2,"have entry\n");
+
+			SendEntryBase* entry = m_postedSends.front();
+			m_postedSends.pop();
 
 			Hermes::Callback* cb = new Hermes::Callback;
 			*cb = [=](int) {
 				m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,2,"callback\n");
-				if ( entry->isDone() ) {
-					m_dbg.debug(CALL_INFO,1,2,"send entry is done\n");
-					m_postedSends.pop();
-				}
 				processSendQ( callback, 0 );
 			};
 
@@ -504,6 +511,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	int m_testallDelay;
 	int m_testanyDelay;
 	int m_matchDelay;
+	int m_memcpyDelay;
 
   private:
     Host*   m_os;

@@ -197,7 +197,10 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 
     Hermes::Callback* cb;
 
+	int delay = 0;
+
 	Hermes::ProcAddr procAddr = getProcAddr(_entry);
+
 	if ( bytes <= m_shortMsgLength ) {
 		m_dbg.debug(CALL_INFO,1,2,"short message\n");
 		if ( entry->buf.getBacking() ) {
@@ -206,6 +209,8 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 		}	
 		entry->doneFlag = true;
 		cb = callback;
+
+		delay = calcMemcpyDelay( bytes );
 
 	} else {
 		m_dbg.debug(CALL_INFO,1,2,"long message key=%p\n",entry);
@@ -219,7 +224,12 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 		
 		bytes = 0;
 	}
-	sendMsg( procAddr, m_sendBuff, sizeof(MsgHdr) + bytes, cb );
+    Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
+		m_dbg.debug(CALL_INFO_LAMBDA,"processSendEntry",1,2," memcpy delay returning\n");
+		sendMsg( procAddr, m_sendBuff, sizeof(MsgHdr) + bytes, cb );
+    });
+
+    m_selfLink->send(delay,new SelfEvent(x) );
 }
 
 void RdmaMpiPt2PtLib::waitForLongAck( Hermes::Callback* callback, SendEntry* entry, int retval )
@@ -249,7 +259,7 @@ void RdmaMpiPt2PtLib::waitForLongAck( Hermes::Callback* callback, SendEntry* ent
 	rdma().checkRQ( m_rqId, &m_rqStatus, true, cb );
 }
 
-void RdmaMpiPt2PtLib::sendMsg( Hermes::ProcAddr& procAddr, Hermes::MemAddr& addr, size_t length, Hermes::Callback* callback )
+void RdmaMpiPt2PtLib::sendMsg( Hermes::ProcAddr procAddr, Hermes::MemAddr& addr, size_t length, Hermes::Callback* callback )
 {
 	m_dbg.debug(CALL_INFO,1,2,"destNid=%d destPid=%d addr=0x%" PRIx64 "length=%zu\n",
 				procAddr.node, procAddr.pid, addr.getSimVAddr(), length  );
@@ -301,7 +311,12 @@ void RdmaMpiPt2PtLib::processMatch( const Hermes::RDMA::Status status, RecvEntry
 		}
 		entry->doneFlag = true;
 
-		repostRecvBuffer( status.addr, callback );
+		Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
+			m_dbg.debug(CALL_INFO_LAMBDA,"processMatch",1,2,"memcpy delay returning\n");
+			repostRecvBuffer( status.addr, callback );
+		});
+
+		m_selfLink->send( calcMemcpyDelay( bytes ), new SelfEvent(x) );
 	} else {
 
 		m_dbg.debug(CALL_INFO,1,2,"found posted long recv bytes=%zu\n", bytes);
