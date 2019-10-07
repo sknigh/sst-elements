@@ -43,9 +43,11 @@ class NicCmd : public SST::Event {
 	enum Type { 
         FOREACH_CMD(GENERATE_CMD_ENUM)
     } type;
+	bool blocking;
 
     NicCmd() : Event() {}
-	NicCmd( Type type ) : Event(), type( type ) {}
+	NicCmd( Type type, bool blocking = true ) : Event(), type( type ), blocking(blocking) {}
+
 
     void serialize_order(SST::Core::Serialization::serializer &ser)  override {
         Event::serialize_order(ser);
@@ -146,7 +148,7 @@ class PostBufferCmd : public NicCmd {
 	PostBufferCmd() {}
 
 	PostBufferCmd( Hermes::MemAddr addr, size_t size, Hermes::RVMA::Completion* completion, Hermes::RVMA::Window window ) :
-		NicCmd(PostBuffer), addr(addr), size(size), completion(completion), window(window)
+		NicCmd(PostBuffer,false), addr(addr), size(size), completion(completion), window(window)
 	{}
 
 	Hermes::MemAddr addr;
@@ -163,7 +165,7 @@ class PostOneTimeBufferCmd : public NicCmd {
 
 	PostOneTimeBufferCmd( Hermes::RVMA::VirtAddr winAddr, size_t threshold, Hermes::RVMA::EpochType type,
 		Hermes::MemAddr bufAddr, size_t size, Hermes::RVMA::Completion* completion ) :
-		NicCmd(PostOneTimeBuffer), winAddr(winAddr), threshold(threshold), type(type), bufAddr(bufAddr), size(size), completion(completion)
+		NicCmd(PostOneTimeBuffer,false), winAddr(winAddr), threshold(threshold), type(type), bufAddr(bufAddr), size(size), completion(completion)
 	{}
 
 	Hermes::RVMA::VirtAddr winAddr;
