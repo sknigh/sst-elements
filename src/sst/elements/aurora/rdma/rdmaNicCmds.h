@@ -41,9 +41,10 @@ class NicCmd : public SST::Event {
 	enum Type { 
         FOREACH_CMD(GENERATE_CMD_ENUM)
     } type;
+	bool blocking;
 
     NicCmd() : Event() {}
-	NicCmd( Type type ) : Event(), type( type ) {}
+	NicCmd( Type type, bool blocking = true ) : Event(), type( type ), blocking(blocking) {}
 
     NotSerializable(SST::Aurora::RDMA::NicCmd);
 };
