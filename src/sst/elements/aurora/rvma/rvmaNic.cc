@@ -175,7 +175,7 @@ void RvmaNicSubComponent::postBuffer( int coreNum, Event* event )
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed ret=%d\n", getNodeNum(), ret);
 	}
 
-	sendResp( coreNum, new RetvalResp(ret) );	
+	sendCredit( coreNum );	
 	
 	delete event;
 }
@@ -207,7 +207,7 @@ void RvmaNicSubComponent::postOneTimeBuffer( int coreNum, Event* event )
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed ret=%d\n", getNodeNum(), ret);
 	}
 
-	sendResp( coreNum, new RetvalResp(ret) );	
+	sendCredit( coreNum );	
 	
 	delete event;
 }
