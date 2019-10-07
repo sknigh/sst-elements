@@ -44,12 +44,10 @@ class HostLib : public Interface
 
     	m_enterDelay.resize( NicCmd::NumCmds );
     	m_returnDelay.resize( NicCmd::NumCmds );
-    	m_blockingCmd.resize( NicCmd::NumCmds );
 
     	for ( int i = 0; i < NicCmd::NumCmds; i++ ) {
 			m_enterDelay[i] = 0;
 			m_returnDelay[i] = 0;
-        	m_blockingCmd[i] = true;
     	}
 
     	m_selfLink = component->configureSelfLink("LibSelfLink", "1 ns", new Event::Handler<HostLib>(this,&HostLib::selfLinkHandler));	
@@ -97,13 +95,16 @@ class HostLib : public Interface
 
 				if ( host().cmdQ().isBlocked() ) {
 					m_dbg.debug(CALL_INFO,1,2,"blocked on cmd queue\n");
-        			host().cmdQ().setWakeup( 
-						[=](){ 
-							m_dbg.debug(CALL_INFO,1,2,"cmd queue wakeup\n");
-							pushNicCmd( m_nicCmd );
-							m_nicCmd = NULL;
-						}
-					);
+					std::function<void()>* cb = new std::function<void()>;
+
+					*cb = [=](){ 
+						m_dbg.debug(CALL_INFO,1,2,"cmd queue wakeup\n");
+						pushNicCmd( m_nicCmd );
+						m_nicCmd = NULL;
+					};
+
+					host().cmdQ().setWakeup(cb);
+
 				} else {
 					m_dbg.debug(CALL_INFO,1,2,"pushed cmd to queue\n");
 					pushNicCmd( m_nicCmd );
@@ -135,7 +136,7 @@ class HostLib : public Interface
 	void pushNicCmd( NicCmd* cmd ) {
 		m_dbg.debug(CALL_INFO,1,2,"\n");
 		host().cmdQ().push( cmd );
-		if ( ! isCmdBlocking( cmd->type ) ) {
+		if ( ! cmd->blocking ) {
 			m_dbg.debug(CALL_INFO,1,2,"non-blocking cmd\n");
 			doReturn( 0 );
 		} else {
@@ -146,7 +147,7 @@ class HostLib : public Interface
 					doReturn( (*m_finiCallback)( event ) );
 					delete m_finiCallback;
 					delete event;
-				}  
+				}
 			);
 		}
 	}
@@ -165,7 +166,6 @@ class HostLib : public Interface
 
 	SimTime_t calcEnterDelay( typename NicCmd::Type type )  { return m_enterDelay[type]; }
 	SimTime_t calcReturnDelay( typename NicCmd::Type type ) { return m_returnDelay[type]; }
-	bool isCmdBlocking( typename NicCmd::Type type )        { return m_blockingCmd[type]; } 
 
 	Host& host() { return *m_os; }
 
@@ -180,7 +180,6 @@ class HostLib : public Interface
 
 	std::vector<SimTime_t> m_enterDelay;
 	std::vector<SimTime_t> m_returnDelay;
-	std::vector<bool> m_blockingCmd;
 
 
 	Callback* m_finiCallback;
