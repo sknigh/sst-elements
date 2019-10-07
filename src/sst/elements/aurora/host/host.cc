@@ -42,7 +42,8 @@ Host::Host( ComponentId_t owner, Params& params ) :
             "1 ns", new Event::Handler<Host>(this,&Host::handleEvent) );
 	assert( m_nicLink );
 
-	m_nicCmdQ = new NicCmdQueue( m_nicLink, params.find<int>("m_maxNicQdepth",32) );
+	m_nicCmdQ = new NicCmdQueue( m_nicLink, params.find<int>("maxNicQdepth",32), 
+			params.find<int>("toNicDelay",0) );
 	m_nicRespQ = new NicRespQueue();
 
 
@@ -122,19 +123,16 @@ void Host::_componentSetup()
     }
 
     char buffer[100];
-    snprintf(buffer,100,"@t:%#x:%d:Host::@p():@l ", m_nodeNum, m_rank);
+    snprintf(buffer,100,"@t:%d:%d:Host::@p():@l ", m_nodeNum, m_rank);
     m_dbg.setPrefix(buffer);
 }
 
 void Host::handleEvent( Event* ev )
 {
-	m_dbg.debug(CALL_INFO,2,0,"\n");
 	NicEvent* event = static_cast<NicEvent*>(ev);
+	m_dbg.debug(CALL_INFO,2,0,"type=%d\n",event->type);
 	switch( event->type ) {
 	  case NicEvent::Credit:
-		// we don't currently use this case
-		assert(0);	
-		m_dbg.debug(CALL_INFO,1,0,"\n");
 		m_nicCmdQ->consumed();
 		break;	
 	  case NicEvent::Payload:
