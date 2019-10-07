@@ -47,7 +47,7 @@ class NicEvent : public SST::Event {
 	enum Type { Credit, Payload } type;
 
     NicEvent() : Event() {}
-	NicEvent( Event* payload ) : Event(), type(Payload), payload(payload) {}
+	NicEvent( Event* payload, Type type ) : Event(), type(type), payload(payload) {}
 
     void serialize_order(SST::Core::Serialization::serializer &ser)  override {
         Event::serialize_order(ser);
