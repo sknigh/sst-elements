@@ -60,11 +60,13 @@ class CreateRqCmd : public NicCmd {
 
 class PostRecvCmd : public NicCmd {
   public:
-	PostRecvCmd( Hermes::RDMA::RqId rqId, Hermes::MemAddr& addr, size_t length ) :
-		NicCmd( PostRecv ), rqId(rqId), addr(addr), length(length) {}
+	PostRecvCmd( Hermes::RDMA::RqId rqId, Hermes::MemAddr& addr, size_t length, Hermes::RDMA::Status* status ) :
+		NicCmd( PostRecv, false ), rqId(rqId), addr(addr), length(length), status(status) {}
 	Hermes::RDMA::RqId rqId;
 	Hermes::MemAddr addr;
 	size_t length;
+	Hermes::RDMA::Status* status;
+
     NotSerializable(SST::Aurora::RDMA::PostRecvCmd);
 };
 

@@ -18,6 +18,7 @@
 #define COMPONENTS_AURORA_RDMA_LIB_H
 
 #include <vector>
+#include <queue>
 #include "sst/elements/hermes/rdma.h"
 #include "include/hostLib.h"
 
@@ -50,9 +51,12 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
 
 	std::string getName()        { return "Rdma"; }
 
+	std::map< Hermes::RDMA::RqId, std::queue< Hermes::RDMA::Status*> > m_rqMap;
+
     void createRQ( Hermes::RDMA::RqId rqId, Hermes::Callback* callback ) { 
 		dbg().debug(CALL_INFO,1,2,"\n");
 		setRetvalCallback();	
+		m_rqMap[rqId];
     	doEnter( new CreateRqCmd( rqId ), callback );
 	}
 
@@ -60,8 +64,10 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
 		   	Hermes::RDMA::RecvBufId* bufId, Hermes::Callback* callback ) 
 	{
 		dbg().debug(CALL_INFO,1,2,"\n");
+		Hermes::RDMA::Status* status = new Hermes::RDMA::Status;
+		m_rqMap[rqId].push( status );
 		setFiniCallback(  new Callback(std::bind( &RdmaLib::postRecvFini, this, bufId, std::placeholders::_1 )) );	
-    	doEnter( new PostRecvCmd( rqId, addr, length ), callback );
+		doEnter( new PostRecvCmd( rqId, addr, length, status ), callback );
 	}
 
     void send( Hermes::ProcAddr proc, Hermes::RDMA::RqId rqId, Hermes::MemAddr& src, size_t length, Hermes::Callback* callback ) {
@@ -72,8 +78,20 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
 
     void checkRQ( Hermes::RDMA::RqId rqId, Hermes::RDMA::Status* status, bool blocking, Hermes::Callback* callback ) {
 		dbg().debug(CALL_INFO,1,2,"\n");
-		setFiniCallback( new Callback( std::bind( &RdmaLib::checkRqFini, this, status, std::placeholders::_1 ) ) );	
-    	doEnter( new CheckRqCmd( rqId, blocking ), callback );
+
+		*status = *m_rqMap[rqId].front();
+
+		if ( -1 != m_rqMap[rqId].front()->length ) {
+			delete m_rqMap[rqId].front();
+			m_rqMap[rqId].pop();
+		}
+
+		if ( blocking && status->length == -1  ) {
+			setFiniCallback( new Callback( std::bind( &RdmaLib::checkRqFini, this, status, std::placeholders::_1 ) ) );	
+			doEnter( new CheckRqCmd( rqId, blocking ), callback );
+		} else {
+			schedCallback( 0, callback, 0 );
+		}
 	}
 
     void registerMem( Hermes::MemAddr& addr, size_t length, Hermes::RDMA::MemRegionId* id, Hermes::Callback* callback ) {

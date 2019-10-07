@@ -162,9 +162,7 @@ void RdmaNicSubComponent::postRecv( int coreNum, Event* event ) {
 	}
 	m_dbg.debug(CALL_INFO,1,2,"rqId=%d m_rqs.size=%zu\n", cmd->rqId, core.m_rqs[cmd->rqId].size() );
 
-	// NOT USED
-	int bufId = 0; 
-    sendResp( coreNum, new PostRecvResp( bufId, retval ) );
+	sendCredit( coreNum );
 }
 
 void RdmaNicSubComponent::send( int coreNum, Event* event ) {

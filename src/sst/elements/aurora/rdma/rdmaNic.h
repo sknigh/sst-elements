@@ -286,9 +286,17 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 				memcpy( buf + m_offset, ptr, length );
 			}
 			m_offset += length;
-			return  ( m_offset == m_recvLength );
+
+			if ( isComplete() ) {
+				cmd->status->procAddr = m_proc;
+				cmd->status->length = m_recvLength;
+				cmd->status->addr = cmd->addr;
+				return true;
+			} else {
+				return false;
+			}
 		}
-		
+
 		bool isComplete() { return ( m_offset == m_recvLength );  }
 		void setRqId( Hermes::RDMA::RqId rqId ) { m_rqId = rqId; }
 		void setRecvLength( size_t length ) { m_recvLength = length; }
