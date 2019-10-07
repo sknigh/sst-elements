@@ -21,31 +21,41 @@ namespace Aurora {
 
 class NicCmdQueue {
   public:
-	  typedef std::function<void()> Callback;
+	typedef std::function<void()> Callback;
 
-	  NicCmdQueue( Link* link, int size ) : m_link(link), m_size(size), m_current(0) { } 
-	  void consumed() { --m_current; }
+	NicCmdQueue( Link* link, int size, int delay ) : m_link(link), m_size(size), m_current(0), m_delay(delay), m_callback(NULL) { } 
 
-	  bool isBlocked() {
-		  return m_current == m_size;
-	  }
+	void consumed() { 
+		--m_current; 
+		if ( m_callback ) {
+			(*m_callback)();
+			delete m_callback;
+			m_callback = NULL;
+		}
+	}
 
-	  void push( Event* event ) {
-		  m_link->send( 0, event );
-		  ++m_current;
-	  }
+	bool isBlocked() {
+		return m_current == m_size;
+	}
 
-	  void setWakeup( Callback callback ) {
-		  m_callback = callback;
-	  }
+	void push( Event* event ) {
+		m_link->send( m_delay, event );
+		++m_current;
+	}
+
+	void setWakeup( Callback* callback ) {
+		assert( NULL == m_callback );
+		m_callback = callback;
+	}
 
   private:
 
 	Link* m_link;
 
+	int m_delay;
 	int m_current;
 	int m_size;
-	Callback m_callback;
+	Callback* m_callback;
 };
 
 }
