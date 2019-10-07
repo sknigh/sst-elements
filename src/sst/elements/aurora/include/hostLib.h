@@ -79,6 +79,10 @@ class HostLib : public Interface
 	void setFiniCallback( Callback* callback ) { m_finiCallback = callback; }
 	void setRetvalCallback( ) { m_finiCallback = new Callback( std::bind( &HostLib::retvalFini, this, std::placeholders::_1 ) ); }
 
+	void schedCallback( SimTime_t delay, Hermes::Callback* callback, int retval ) {
+		schedDelay( delay, new SelfEvent( callback, retval) );
+	}
+
   private:
 
 	int retvalFini( Event* event ) {
