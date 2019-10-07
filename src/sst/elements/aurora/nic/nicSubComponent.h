@@ -51,8 +51,13 @@ class NicSubComponent : public SubComponent {
 	void setPktSize( int size ) { m_pktSize = size; } 
 
 	Interfaces::SimpleNetwork& getNetworkLink( ) { return *m_netLink; }
+
 	void sendResp( int core, Event* event ) {
-		m_toCoreLinks[core]->send(m_toHostLatency,new NicEvent( event) ); 
+		m_toCoreLinks[core]->send(m_toHostLatency,new NicEvent( event, NicEvent::Payload ) ); 
+	}
+
+	void sendCredit( int core ) {
+		m_toCoreLinks[core]->send(m_toHostLatency,new NicEvent( NULL,  NicEvent::Credit ) ); 
 	}
 
 	virtual void setNodeNum( int num ) { m_nodeNum = num; }
