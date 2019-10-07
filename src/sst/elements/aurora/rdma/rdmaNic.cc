@@ -355,7 +355,7 @@ bool RdmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
 		m_dmaSlots[slot].init( pkt, entry.destNode() ); 
 
-		SimTime_t delay = 10; 
+		SimTime_t delay = 0; 
 
 		SendEntry* tmp = &entry;
 		Callback* callback = new Callback;
@@ -495,7 +495,7 @@ void RdmaNicSubComponent::processMsg( NetworkPkt* pkt )
 			}	
 			delete pkt;
 		};
-		m_selfLink->send( 10, new SelfEvent( callback ) );
+		m_selfLink->send( 0, new SelfEvent( callback ) );
 	} else {
 		m_dbg.output("NIC %d dump msg pkt from nid=%d pid=%d\n", getNodeNum(), srcNid, srcPid );
 		delete pkt;
@@ -577,5 +577,5 @@ void RdmaNicSubComponent::processRdmaWrite( NetworkPkt* pkt )
 		delete pkt;
 	};
 
-	m_selfLink->send( 10, new SelfEvent( callback ) );
+	m_selfLink->send( 0, new SelfEvent( callback ) );
 }
