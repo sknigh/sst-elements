@@ -102,9 +102,18 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 	class SelfEvent : public Event {
 	  public:
-		SelfEvent( int slot, SendEntry* entry ) : Event(), slot(slot), entry(entry) {}
+		enum Type { RxLatency, RxDmaDone, SendDMA } type;
+		SelfEvent( int slot, SendEntry* entry ) : Event(), type(SendDMA), slot(slot), entry(entry) {}
+		SelfEvent( NetworkPkt* pkt ) : Event(), type(RxLatency), pkt(pkt) {}
+		SelfEvent( int pid, int window, NetworkPkt* pkt, size_t length, uint64_t rvmaOffset  ) : 
+			Event(), type(RxDmaDone), pid(pid), window(window), pkt(pkt), length(length), rvmaOffset(rvmaOffset) {}
 		int slot;
 		SendEntry* entry;
+		NetworkPkt* pkt;
+		int pid;
+		int window;
+		size_t length;
+		uint64_t rvmaOffset;
 
 		NotSerializable(SelfEvent)
 	};
@@ -281,16 +290,22 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 	bool processSend( Cycle_t );
 	bool processRecv() {
+		if ( m_recvStartBusy || m_recvDmaPendingCnt > 1 ) {
+			return false;
+		}
+
 		Interfaces::SimpleNetwork::Request* req = getNetworkLink().recv( m_vc );
     	if ( req ) {
         	NetworkPkt* pkt = static_cast<NetworkPkt*>(req->takePayload());
-			processRVMA(pkt);
+			m_dbg.debug(CALL_INFO,3,1,"got network packet\n");
+			m_selfLink->send( m_rxLatency, new SelfEvent( pkt ) );
+			m_recvStartBusy = true;
 			delete req;
-			return true;
 		}
 		return false;
 	}
-	void processRVMA( NetworkPkt* );
+	void processRecvPktStart( NetworkPkt* );
+	void processRecvPktFini( int pid, int window, NetworkPkt*, size_t length, uint64_t rvmaOffset );
 	void setNumCores( int num );
 	void initWindow( int coreNum, Event* event );
 	void closeWindow( int coreNum, Event* event );
@@ -339,6 +354,10 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 	std::queue< SendEntry* > m_sendQ;
 
 	int m_vc;
+	bool m_recvStartBusy;
+	int m_recvDmaPendingCnt;
+
+	SelfEvent* m_recvDmaBlockedEvent;
 };
 
 }
