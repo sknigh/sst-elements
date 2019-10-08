@@ -90,7 +90,7 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
 			setFiniCallback( new Callback( std::bind( &RdmaLib::checkRqFini, this, status, std::placeholders::_1 ) ) );	
 			doEnter( new CheckRqCmd( rqId, blocking ), callback );
 		} else {
-			schedCallback( 0, callback, 0 );
+			schedCallback( calcEnterDelay(NicCmd::CheckRQ) + calcReturnDelay(NicCmd::CheckRQ), callback, 0 );
 		}
 	}
 

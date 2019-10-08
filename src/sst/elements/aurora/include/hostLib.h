@@ -83,6 +83,9 @@ class HostLib : public Interface
 		schedDelay( delay, new SelfEvent( callback, retval) );
 	}
 
+	SimTime_t calcEnterDelay( typename NicCmd::Type type )  { return m_enterDelay[type]; }
+	SimTime_t calcReturnDelay( typename NicCmd::Type type ) { return m_returnDelay[type]; }
+
   private:
 
 	int retvalFini( Event* event ) {
@@ -168,8 +171,6 @@ class HostLib : public Interface
 		m_selfLink->send( delay, event ); 
 	}
 
-	SimTime_t calcEnterDelay( typename NicCmd::Type type )  { return m_enterDelay[type]; }
-	SimTime_t calcReturnDelay( typename NicCmd::Type type ) { return m_returnDelay[type]; }
 
 	Host& host() { return *m_os; }
 
