@@ -74,6 +74,12 @@ class NicSubComponent : public SubComponent {
 
   protected:
 
+	SimTime_t calcBusLatency( size_t length ) {
+		//printf("%s() length=%zu BW=%" PRIu64 " latency=%" PRIu64 "\n",
+		//__func__,length, m_busBandwidth, (SimTime_t) ( ( (double) length / m_busBandwidth ) * 1000000000.0 ) );
+		return ( ( (double) length / m_busBandwidth ) * 1000000000.0 ); 
+    }
+
     void stopClocking( Cycle_t cycle );
     void startClocking();
     void _startClocking() {
@@ -93,6 +99,11 @@ class NicSubComponent : public SubComponent {
 	bool	m_clocking;
 	Output	m_dbg;
 
+	SimTime_t m_toHostLatency;	
+	SimTime_t m_rxLatency;	
+	SimTime_t m_txLatency;
+	SimTime_t m_busBandwidth;
+
   private:
     std::vector<Link*>          		m_toCoreLinks;
 	Clock::Handler<NicSubComponent>*	m_clockHandler;
@@ -100,12 +111,6 @@ class NicSubComponent : public SubComponent {
 
 	int 	m_nodeNum;
 	Nic* 	m_nic;
-
-	SimTime_t m_toHostLatency;	
-	SimTime_t m_rxLatency;	
-	SimTime_t m_txLatency;
-	SimTime_t m_numDmaEngines;
-	SimTime_t m_busBandwidth;
 
 	Cycle_t m_totalIdleCycles;
 	Cycle_t m_stopCycle;
