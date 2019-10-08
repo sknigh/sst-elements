@@ -42,12 +42,12 @@ class HostLib : public Interface
 
     	m_dbg.debug(CALL_INFO,1,2,"\n");
 
-    	m_enterDelay.resize( NicCmd::NumCmds );
-    	m_returnDelay.resize( NicCmd::NumCmds );
+    	m_enterLatency.resize( NicCmd::NumCmds );
+    	m_returnLatency.resize( NicCmd::NumCmds );
 
     	for ( int i = 0; i < NicCmd::NumCmds; i++ ) {
-			m_enterDelay[i] = 0;
-			m_returnDelay[i] = 0;
+			m_enterLatency[i] = 0;
+			m_returnLatency[i] = 0;
     	}
 
     	m_selfLink = component->configureSelfLink("LibSelfLink", "1 ns", new Event::Handler<HostLib>(this,&HostLib::selfLinkHandler));	
@@ -72,7 +72,7 @@ class HostLib : public Interface
 		m_nicCmd = cmd; 
 		m_hermesCallback = callback;
 		m_state = Enter;
-		schedDelay( calcEnterDelay(cmd->type) );
+		schedLatency( calcEnterLatency(cmd->type) );
 	}
 	typedef std::function<int(Event*)> Callback;
 
@@ -80,11 +80,11 @@ class HostLib : public Interface
 	void setRetvalCallback( ) { m_finiCallback = new Callback( std::bind( &HostLib::retvalFini, this, std::placeholders::_1 ) ); }
 
 	void schedCallback( SimTime_t delay, Hermes::Callback* callback, int retval ) {
-		schedDelay( delay, new SelfEvent( callback, retval) );
+		schedLatency( delay, new SelfEvent( callback, retval) );
 	}
 
-	SimTime_t calcEnterDelay( typename NicCmd::Type type )  { return m_enterDelay[type]; }
-	SimTime_t calcReturnDelay( typename NicCmd::Type type ) { return m_returnDelay[type]; }
+	SimTime_t calcEnterLatency( typename NicCmd::Type type )  { return m_enterLatency[type]; }
+	SimTime_t calcReturnLatency( typename NicCmd::Type type ) { return m_returnLatency[type]; }
 
   private:
 
@@ -163,10 +163,10 @@ class HostLib : public Interface
 		m_dbg.debug(CALL_INFO,1,2," nicCmd %d\n",m_pendingCmd);
 		assert( m_state == Enter );
 		m_state = Return;
-		schedDelay( calcReturnDelay(m_pendingCmd), new SelfEvent( m_hermesCallback, retval) );
+		schedLatency( calcReturnLatency(m_pendingCmd), new SelfEvent( m_hermesCallback, retval) );
 	}
 
-	void schedDelay( SimTime_t delay, Event* event = NULL ) {
+	void schedLatency( SimTime_t delay, Event* event = NULL ) {
 		m_dbg.debug(CALL_INFO,1,2,"delay=%" PRIu64 "\n",delay);
 		m_selfLink->send( delay, event ); 
 	}
@@ -183,8 +183,8 @@ class HostLib : public Interface
 	NicCmd* m_nicCmd;
 	typename NicCmd::Type m_pendingCmd;
 
-	std::vector<SimTime_t> m_enterDelay;
-	std::vector<SimTime_t> m_returnDelay;
+	std::vector<SimTime_t> m_enterLatency;
+	std::vector<SimTime_t> m_returnLatency;
 
 
 	Callback* m_finiCallback;

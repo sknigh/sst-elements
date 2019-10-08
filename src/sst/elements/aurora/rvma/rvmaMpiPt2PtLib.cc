@@ -268,7 +268,7 @@ void RvmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 		}	
 		entry->doneFlag = true;
 
-		delay = calcMemcpyDelay( bytes );
+		delay = calcMemcpyLatency( bytes );
 
 	} else {
 
@@ -372,7 +372,7 @@ void RvmaMpiPt2PtLib::processMatch( const Hermes::MemAddr& msg, RecvEntryBase* _
 			repostRecvBuffer( msg, callback );
 		});
 
-		m_selfLink->send( calcMemcpyDelay( bytes ), new SelfEvent(x) );
+		m_selfLink->send( calcMemcpyLatency( bytes ), new SelfEvent(x) );
 
 	} else {
 

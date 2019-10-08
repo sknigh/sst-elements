@@ -43,7 +43,7 @@ Host::Host( ComponentId_t owner, Params& params ) :
 	assert( m_nicLink );
 
 	m_nicCmdQ = new NicCmdQueue( m_nicLink, params.find<int>("maxNicQdepth",32), 
-			params.find<int>("toNicDelay",0) );
+			params.find<int>("toNicLatency",0) );
 	m_nicRespQ = new NicRespQueue();
 
 

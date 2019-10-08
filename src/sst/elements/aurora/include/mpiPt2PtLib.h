@@ -29,7 +29,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
   public:
 
-	MpiPt2Pt(Component* owner, Params& params) : Interface(owner), m_memcpyDelay(0)
+	MpiPt2Pt(Component* owner, Params& params) : Interface(owner), m_memcpyLatency(0)
 	{
 		m_shortMsgLength = params.find<size_t>("shortMsgLength",4096);
 		m_numRecvBuffers = params.find<int>("numRecvBuffers",32);
@@ -43,19 +43,19 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 		m_misc = dynamic_cast< Hermes::Misc::Interface*>( loadAnonymousSubComponent<Hermes::Interface>( "aurora.misc", "", 0, ComponentInfo::SHARE_NONE, modParams ) );
     	assert(m_misc);
 
-		int defaultDelay = params.find<int>("defaultDelay",0);
-		m_initDelay = params.find<int>("initDelay",defaultDelay);
-		m_sendDelay = params.find<int>("sendDelay",defaultDelay);
-		m_recvDelay = params.find<int>("recvDelay",defaultDelay);
-		m_isendDelay = params.find<int>("isendDelay",defaultDelay);
-		m_irecvDelay = params.find<int>("irecvDelay",defaultDelay);
-		m_testDelay = params.find<int>("testDelay",defaultDelay);
-		m_testallDelay = params.find<int>("testallDelay",defaultDelay);	
-		m_testanyDelay = params.find<int>("testanyDelay",defaultDelay);
-		m_matchDelay = params.find<int>("matchDelay",0);
+		int defaultLatency = params.find<int>("defaultLatency",0);
+		m_initLatency = params.find<int>("initLatency",defaultLatency);
+		m_sendLatency = params.find<int>("sendLatency",defaultLatency);
+		m_recvLatency = params.find<int>("recvLatency",defaultLatency);
+		m_isendLatency = params.find<int>("isendLatency",defaultLatency);
+		m_irecvLatency = params.find<int>("irecvLatency",defaultLatency);
+		m_testLatency = params.find<int>("testLatency",defaultLatency);
+		m_testallLatency = params.find<int>("testallLatency",defaultLatency);	
+		m_testanyLatency = params.find<int>("testanyLatency",defaultLatency);
+		m_matchLatency = params.find<int>("matchLatency",0);
 		double bw = params.find<UnitAlgebra>("memcpyBandwidth","0").getRoundedValue();
 		if ( bw ) {
-			m_memcpyDelay = ((1/bw) * 1000000000); 
+			m_memcpyLatency = ((1/bw) * 1000000000); 
 		}
 	}
 
@@ -72,7 +72,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 		*myRank = os().getWorldRank();
 		*numRanks = os().getWorldNumRanks();
 		Hermes::Callback* cb = new Hermes::Callback(std::bind( &MpiPt2Pt::_init, this, numRanks, myRank, callback ) );
-		m_selfLink->send( m_initDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_initLatency,new SelfEvent(cb) );
 	}
 
 	void send(const Hermes::MemAddr& buf, int count, Mpi::DataType dataType, int dest, int tag,
@@ -82,14 +82,14 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
             buf.getSimVAddr(),count,Mpi::sizeofDataType( dataType ), dest, tag, comm );
 
 		Callback* cb = new Callback( std::bind( &MpiPt2Pt::_send, this, buf, count, dataType, dest, tag, comm, callback ) );
-		m_selfLink->send( m_sendDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_sendLatency,new SelfEvent(cb) );
 	}
 
 	void isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int dest, int tag,
 		Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request, Hermes::Callback* callback )
 	{
 		Hermes::Callback* cb = new Hermes::Callback(std::bind( &MpiPt2Pt::_isend, this, buf, count, dataType, dest, tag, comm, request, callback ) );
-		m_selfLink->send( m_isendDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_isendLatency,new SelfEvent(cb) );
 	}
 
 	void recv(const Hermes::MemAddr& buf, int count, Mpi::DataType dataType, int src, int tag,
@@ -98,39 +98,39 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 		m_dbg.debug(CALL_INFO,1,2,"buf=0x%" PRIx64 " count=%d dataSize=%d src=%d tag=%d comm=%d\n",
 			buf.getSimVAddr(),count, Mpi::sizeofDataType( dataType ), src, tag, comm );
 		Callback* cb = new Hermes::Callback( std::bind( &MpiPt2Pt::_recv, this, buf, count, dataType, src, tag, comm, status, callback ) );
-		m_selfLink->send( m_recvDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_recvLatency,new SelfEvent(cb) );
 	}
 
 	void irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int src, int tag,
 		Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request, Hermes::Callback* callback )
 	{
 		Hermes::Callback* cb = new Hermes::Callback(std::bind( &MpiPt2Pt::_irecv, this, buf, count, dataType, src, tag, comm, request, callback ) );
-		m_selfLink->send( m_irecvDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_irecvLatency,new SelfEvent(cb) );
 	}
 
 	void test( Hermes::Mpi::Request* request, Hermes::Mpi::Status* status, bool blocking, Hermes::Callback* callback )
 	{
 		Hermes::Callback* cb = new Hermes::Callback(std::bind( &MpiPt2Pt::_test, this, request, status, blocking, callback ) );
-		m_selfLink->send( m_testDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_testLatency,new SelfEvent(cb) );
 	}
 
 	void testall( int count, Mpi::Request* request, int* flag, Mpi::Status* status, bool blocking, Callback* callback )
 	{
 		Hermes::Callback* cb = new Hermes::Callback(std::bind( &MpiPt2Pt::_testall, this, count, request, flag, status, blocking, callback ) );
-		m_selfLink->send( m_testallDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_testallLatency,new SelfEvent(cb) );
 	}
 
 	void testany( int count, Mpi::Request* request, int* indx, int* flag, Mpi::Status* status, bool blocking, Callback* callback )
 	{
 		Hermes::Callback* cb = new Hermes::Callback(std::bind( &MpiPt2Pt::_testany, this, count, request, indx, flag, status, blocking, callback ));
-		m_selfLink->send( m_testanyDelay,new SelfEvent(cb) );
+		m_selfLink->send( m_testanyLatency,new SelfEvent(cb) );
 	}
 
   protected:
 
-	uint64_t calcMemcpyDelay( size_t bytes ) {
-		 m_dbg.debug(CALL_INFO,1,2,"memcpyDelay for %zu bytes is %" PRIu64 " ns.\n",bytes,  (uint64_t) bytes * m_memcpyDelay);
-		return bytes * m_memcpyDelay;
+	uint64_t calcMemcpyLatency( size_t bytes ) {
+		 m_dbg.debug(CALL_INFO,1,2,"memcpyLatency for %zu bytes is %" PRIu64 " ns.\n",bytes,  (uint64_t) bytes * m_memcpyLatency);
+		return bytes * m_memcpyLatency;
 	}
 
 	virtual void _init( int* numRanks, int* myRank, Hermes::Callback* callback ) = 0;
@@ -475,7 +475,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 			if ( checkMatch( hdr, *iter ) ) {
 				entry = *iter;
 				m_postedRecvs.erase( iter );
-				delay += m_matchDelay;
+				delay += m_matchLatency;
 				m_dbg.debug(CALL_INFO,1,1,"found posted recv\n");
 				break;
 			}
@@ -502,16 +502,16 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	std::deque< RecvEntryBase* > m_postedRecvs;
 	std::queue< SendEntryBase* > m_postedSends;
 
-	int m_initDelay;
-	int m_sendDelay;
-	int m_recvDelay;
-	int m_isendDelay;
-	int m_irecvDelay;
-	int m_testDelay;
-	int m_testallDelay;
-	int m_testanyDelay;
-	int m_matchDelay;
-	int m_memcpyDelay;
+	int m_initLatency;
+	int m_sendLatency;
+	int m_recvLatency;
+	int m_isendLatency;
+	int m_irecvLatency;
+	int m_testLatency;
+	int m_testallLatency;
+	int m_testanyLatency;
+	int m_matchLatency;
+	int m_memcpyLatency;
 
   private:
     Host*   m_os;

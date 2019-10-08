@@ -288,7 +288,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 			delete req;
 			return true;
 		}
-		return 0;
+		return false;
 	}
 	void processRVMA( NetworkPkt* );
 	void setNumCores( int num );
@@ -312,25 +312,6 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		std::vector<Window> m_windowTbl;
 		MwaitCmd*   		m_mwaitCmd;
 		std::deque< Buffer* > m_completed;
-
-#if 0
-		void saveCompleted( Buffer* buffer ) {
-			printf("%s() %p\n",__func__,buffer->completion);
-			m_completed.push_back(buffer);
-		}
-
-		bool checkCompleted( MwaitCmd* cmd ) {
-			std::deque< Buffer* >::iterator iter = m_completed.begin();
-			for ( ; iter != m_completed.end(); ++iter ) {
-				printf("%s() %p %p\n",__func__,cmd->completion,(*iter)->completion);
-				if ( cmd->completion == (*iter)->completion ) {
-					m_completed.erase(iter);
-					return true;
-				}
-			}
-			return false;
-		}
-#endif
 
 		int findWindow( Hermes::RVMA::VirtAddr winAddr ) {
 			for ( int i = 0; i < m_windowTbl.size(); i++ ) {

@@ -210,7 +210,7 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 		entry->doneFlag = true;
 		cb = callback;
 
-		delay = calcMemcpyDelay( bytes );
+		delay = calcMemcpyLatency( bytes );
 
 	} else {
 		m_dbg.debug(CALL_INFO,1,2,"long message key=%p\n",entry);
@@ -316,7 +316,7 @@ void RdmaMpiPt2PtLib::processMatch( const Hermes::RDMA::Status status, RecvEntry
 			repostRecvBuffer( status.addr, callback );
 		});
 
-		m_selfLink->send( calcMemcpyDelay( bytes ), new SelfEvent(x) );
+		m_selfLink->send( calcMemcpyLatency( bytes ), new SelfEvent(x) );
 	} else {
 
 		m_dbg.debug(CALL_INFO,1,2,"found posted long recv bytes=%zu\n", bytes);

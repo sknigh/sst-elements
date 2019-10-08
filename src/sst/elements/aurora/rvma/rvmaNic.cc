@@ -407,12 +407,6 @@ void RvmaNicSubComponent::processRVMA( NetworkPkt* pkt )
 				delete core.m_mwaitCmd;
 				core.m_mwaitCmd = NULL;
 			}
-		} else {
-#if 0
-			if ( ! core.m_windowTbl[window].isOneTime() ) {
-				core.saveCompleted( buffer );
-			}
-#endif
 		}
 
 		if ( core.m_windowTbl[window].isOneTime() ) {

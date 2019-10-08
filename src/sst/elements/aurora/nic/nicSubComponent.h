@@ -102,6 +102,11 @@ class NicSubComponent : public SubComponent {
 	Nic* 	m_nic;
 
 	SimTime_t m_toHostLatency;	
+	SimTime_t m_rxLatency;	
+	SimTime_t m_txLatency;
+	SimTime_t m_numDmaEngines;
+	SimTime_t m_busBandwidth;
+
 	Cycle_t m_totalIdleCycles;
 	Cycle_t m_stopCycle;
 
