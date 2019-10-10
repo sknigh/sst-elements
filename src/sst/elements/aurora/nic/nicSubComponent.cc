@@ -30,7 +30,11 @@ NicSubComponent::NicSubComponent( ComponentId_t id, Params params ) : SubCompone
 	m_toHostLatency = params.find<SimTime_t>("toHostLatency",0);
 	m_rxLatency = params.find<SimTime_t>("rxLatency",0);
 	m_txLatency = params.find<SimTime_t>("txLatency",0);
-	m_busBandwidth = params.find<SST::UnitAlgebra>( "busBandwidth" ).getRoundedValue();
+
+	SST::UnitAlgebra busBandwidth = params.find<SST::UnitAlgebra>( "busBandwidth", "15GB/s" );
+
+	m_toHostBandwidth = params.find<SST::UnitAlgebra>( "toHostBandwidth", busBandwidth ).getRoundedValue();
+	m_fromHostBandwidth = params.find<SST::UnitAlgebra>( "fromHostBandwidth", busBandwidth ).getRoundedValue();
 
     m_selfLink = configureSelfLink("Nic::selfLink", "1 ns",
        new Event::Handler<NicSubComponent>(this,&NicSubComponent::handleSelfEvent));
