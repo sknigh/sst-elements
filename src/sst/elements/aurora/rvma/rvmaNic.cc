@@ -19,14 +19,15 @@
 #include "rvmaNicResp.h"
 
 using namespace SST::Aurora::RVMA;
-using namespace SST::Interfaces;
 
 const char* RvmaNicSubComponent::m_cmdName[] = {
     FOREACH_CMD(GENERATE_CMD_STRING)
 };
 
 RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params ), m_vc(0),
-	m_firstActiveDMAslot(0), m_firstAvailDMAslot(0), m_activeDMAslots(0), m_recvStartBusy(false), m_recvDmaPendingCnt(0), m_recvDmaBlockedEvent(NULL)
+	m_recvStartBusy(false), m_recvDmaPending(false), m_recvDmaBlockedEvent(NULL),
+	m_sendStartBusy(false), m_sendDmaPending(false), m_sendDmaBlockedEvent(NULL),
+	m_pendingNetReq(NULL)
 {
    if ( params.find<bool>("print_all_params",false) ) {
         printf("Aurora::RVMA::RvmaNicSubComponent()\n");
@@ -50,8 +51,6 @@ RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : N
 	m_cmdFuncTbl[NicCmd::WinGetBufPtrs] = &RvmaNicSubComponent::getBufPtrs;
 	m_cmdFuncTbl[NicCmd::Put] = &RvmaNicSubComponent::put;
 	m_cmdFuncTbl[NicCmd::Mwait] = &RvmaNicSubComponent::mwait;
-
-	m_dmaSlots.resize( params.find<int>("numDmaSlots",32) );
 }
 
 void RvmaNicSubComponent::setup()
@@ -234,7 +233,6 @@ void RvmaNicSubComponent::mwait( int coreNum, Event* event )
 	assert( ! core.m_mwaitCmd );
 
 	if ( cmd->completion->count ) {
-//	if ( core.checkCompleted( cmd ) ) {
 		sendResp( coreNum, new RetvalResp(0) );	
 		delete cmd;
 	} else {
@@ -246,6 +244,17 @@ bool RvmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 
     m_dbg.debug(CALL_INFO,3,1,"\n");
 
+	if ( m_pendingNetReq && sendNetReq( m_pendingNetReq ) ) {
+		m_dbg.debug(CALL_INFO,2,1,"sent pendingNetReq\n");
+		m_pendingNetReq = NULL;
+		netReqSent();
+	}
+
+	while ( ! m_selfEventQ.empty() ) {
+		handleSelfEvent( m_selfEventQ.front() );
+		m_selfEventQ.pop();
+	}
+
 	bool stop = ( ! processRecv() && ! processSend( cycle ) );
 
 	if ( stop ) {
@@ -256,23 +265,29 @@ bool RvmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 }
 
 bool RvmaNicSubComponent::processSend( Cycle_t cycle ) {
-	return processDMAslots() || ! processSendQ(cycle);
+	return ! processSendQ(cycle);
 }
 
 void RvmaNicSubComponent::handleSelfEvent( Event* e ) {
 	SelfEvent* event = static_cast<SelfEvent*>(e);
-	m_dbg.debug(CALL_INFO,3,1,"slot %d\n",event->slot);
 
 	if ( ! m_clocking ) { startClocking(); }
 
+	m_selfEventQ.push( event );
+}
+
+void RvmaNicSubComponent::handleSelfEvent( SelfEvent* event ) {
+
+	m_dbg.debug(CALL_INFO,2,1,"type %d\n",event->type);
 	switch ( event->type ) {
-	  case SelfEvent::SendDMA:
-		m_dmaSlots[event->slot].setReady();
-		event->entry->incCompletedDMAs();
-		if ( event->entry->done() ) {
-			delete event->entry;
-		}
+	  case SelfEvent::TxLatency:
+		processSendPktStart( event->pkt, event->sendEntry, event->length, event->lastPkt  );
 		break;
+
+	  case SelfEvent::TxDmaDone:
+		processSendPktFini( event->pkt, event->sendEntry, event->lastPkt  );
+		break;
+
 	  case SelfEvent::RxLatency:
 		processRecvPktStart(event->pkt);
 		break;
@@ -280,98 +295,156 @@ void RvmaNicSubComponent::handleSelfEvent( Event* e ) {
 	  case SelfEvent::RxDmaDone:
 		processRecvPktFini( event->pid, event->window, event->pkt, event->length, event->rvmaOffset );
 		break;
+
+	  default:
+		assert(0);
 	}
 	delete event;
 }
 
 bool RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
-	if ( ! m_sendQ.empty() && m_activeDMAslots < m_dmaSlots.size() ) {
-		SendEntry& entry = *m_sendQ.front();
+	if ( m_sendQ.empty() || m_sendStartBusy || m_pendingNetReq ) {
+		return false;
+	}
 
-		int slot = m_firstAvailDMAslot;
+	SendEntry& entry = *m_sendQ.front();
 
-		m_firstAvailDMAslot = (m_firstAvailDMAslot + 1) % m_dmaSlots.size();
-		m_dbg.debug(CALL_INFO,2,1,"slot %d\n",slot);
+	NetworkPkt* pkt = new NetworkPkt( getPktSize() );
 
-		++m_activeDMAslots;
+	pkt->setDestPid( entry.destPid() );
 
-		NetworkPkt* pkt = new NetworkPkt( getPktSize() );
+	Hermes::RVMA::VirtAddr rvmaAddr = entry.virtAddr();
+	uint64_t rvmaOffset = entry.offset();
+	pkt->payloadPush( &rvmaAddr, sizeof( rvmaAddr ) );
+	pkt->payloadPush( &rvmaOffset, sizeof( rvmaOffset ) );
 
-		pkt->setDestPid( entry.destPid() );
+	int bytesLeft = pkt->pushBytesLeft();
+	int payloadSize = entry.remainingBytes() <  bytesLeft ? entry.remainingBytes() : bytesLeft;
 
-		Hermes::RVMA::VirtAddr rvmaAddr = entry.virtAddr();
-		uint64_t rvmaOffset = entry.offset();  
-		pkt->payloadPush( &rvmaAddr, sizeof( rvmaAddr ) );
-		pkt->payloadPush( &rvmaOffset, sizeof( rvmaOffset ) );
+	pkt->payloadPush( entry.dataAddr(), payloadSize );
 
-		int bytesLeft = pkt->pushBytesLeft();
-		m_dbg.debug(CALL_INFO,2,1,"bytes left %d\n",bytesLeft);
-		int payloadSize = entry.remainingBytes() <  bytesLeft ? entry.remainingBytes() : bytesLeft;  
+	m_dbg.debug(CALL_INFO,2,1,"destNid=%d destPid=%d payloadSize %d\n",entry.getDestNode(), entry.destPid(),  payloadSize);
+	entry.decRemainingBytes( payloadSize );
 
-		pkt->payloadPush( entry.dataAddr(), payloadSize );
+	pkt->setSrcNid( getNodeNum() );
+	pkt->setSrcPid( entry.getSrcCore() );
 
-		m_dbg.debug(CALL_INFO,2,1,"destNid=%d destPid=%d payloadSize %d\n",entry.getDestNode(), entry.destPid(),  payloadSize);
-		entry.decRemainingBytes( payloadSize );
+	m_sendStartBusy = true;
 
-		pkt->setSrcNid( getNodeNum() );
-		pkt->setSrcPid( entry.getSrcCore() );
-		m_dmaSlots[slot].init( pkt, entry.getDestNode() ); 
+	m_selfLink->send( m_txLatency, new SelfEvent( pkt, &entry, payloadSize, 0 == entry.remainingBytes() ) );
 
-		SimTime_t delay = 0; 
+	if ( 0 == entry.remainingBytes() ) {
+		m_dbg.debug(CALL_INFO,2,1,"done %p %p\n",pkt, &entry);
+		m_sendQ.pop();
+	}
 
-		m_selfLink->send( delay, new SelfEvent( slot, m_sendQ.front() ) );
-
-		if ( 0 == entry.remainingBytes() ) {
-			m_dbg.debug(CALL_INFO,2,1,"send entry done\n");
-			int srcCore = entry.getSrcCore();
-			if ( NULL == entry.getCmd().completion ) {
-				sendResp( srcCore, new RetvalResp(0) );	
-			} else { 
-				entry.getCmd().completion->count = entry.getCmd().size; 
-				Core& core = m_coreTbl[srcCore];
-				if ( core.m_mwaitCmd && core.m_mwaitCmd->completion == entry.getCmd().completion ) {
-					m_dbg.debug(CALL_INFO,2,1,"completed put matches\n");
-					sendResp( srcCore, new RetvalResp(0) );	
-					delete core.m_mwaitCmd;
-					core.m_mwaitCmd = NULL;
-				}
-			}
-			m_sendQ.pop();
-		}
-	}	
-	return m_activeDMAslots == m_dmaSlots.size() || m_sendQ.empty();	
+	return false;
 }
 
-int RvmaNicSubComponent::processDMAslots() 
-{
-	if ( m_activeDMAslots && m_dmaSlots[m_firstActiveDMAslot].ready() ) {
-		m_dbg.debug(CALL_INFO,3,1,"packet is ready\n");
-		DMAslot& slot = m_dmaSlots[m_firstActiveDMAslot]; 
-		NetworkPkt* pkt = slot.pkt();
+void RvmaNicSubComponent::processSendPktStart( NetworkPkt* pkt, SendEntry* entry, size_t length, bool lastPkt ) {
 
-		int sizeInBits = pkt->payloadSize()*8;
+	m_dbg.debug(CALL_INFO,2,1,"pkt send start latency complete\n");
 
-		if ( getNetworkLink().spaceToSend( m_vc, sizeInBits ) ) { 
-			m_dbg.debug(CALL_INFO,2,1,"send packet\n");
-			SimpleNetwork::Request* req = new SimpleNetwork::Request();	
-			req->dest = slot.getDestNode();
-			req->src = getNodeNum();
-			req->size_in_bits = sizeInBits; 
-			req->vn = m_vc;
-			req->givePayload( pkt );
-			getNetworkLink().send( req, m_vc );
-			slot.setIdle();
-			m_firstActiveDMAslot = (m_firstActiveDMAslot + 1) % m_dmaSlots.size();
-			--m_activeDMAslots;
-			return true;
-		} else {
-			m_dbg.debug(CALL_INFO,3,1,"can't send packet because network is busy\n");
-			return false;
+	SelfEvent* event = new SelfEvent( pkt, entry, lastPkt );
+
+	if ( m_sendDmaPending ) {
+		m_dbg.debug(CALL_INFO,2,1,"pkt DMA blocked\n");
+		assert( NULL == m_sendDmaBlockedEvent );
+		event->length = length;
+		m_sendDmaBlockedEvent = event;
+		m_dbg.debug(CALL_INFO,2,1,"have blocked dma request %d %zu\n",m_sendDmaBlockedEvent->type,m_sendDmaBlockedEvent->length);
+	} else {
+		m_sendStartBusy = false;
+		m_sendDmaPending = true;
+		m_selfLink->send( calcFromHostBW_Latency( length ), event );
+	}
+}
+
+void RvmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry, bool lastPkt ) {
+
+	m_dbg.debug(CALL_INFO,2,1,"pkt send DMA latency complete\n");
+
+	if ( m_sendStartBusy ) {
+		m_sendStartBusy = false;
+	}
+
+	SimpleNetwork::Request* req = makeNetReq( pkt, entry->getDestNode() );
+
+	if ( lastPkt ) {
+		m_dbg.debug(CALL_INFO,2,1,"send entry done\n");
+		int srcCore = entry->getSrcCore();
+		if ( NULL == entry->getCmd().completion ) {
+			sendResp( srcCore, new RetvalResp(0) );
+		} else { 
+			entry->getCmd().completion->count = entry->getCmd().size;
+			Core& core = m_coreTbl[srcCore];
+			if ( core.m_mwaitCmd && core.m_mwaitCmd->completion == entry->getCmd().completion ) {
+				m_dbg.debug(CALL_INFO,2,1,"completed put matches\n");
+				sendResp( srcCore, new RetvalResp(0) );	
+				delete core.m_mwaitCmd;
+				core.m_mwaitCmd = NULL;
+			}
 		}
-	}	
+		delete entry;
+	}
+
+	if ( sendNetReq( req ) ) {
+		netReqSent();
+	} else {
+		m_dbg.debug(CALL_INFO,2,1,"blocking on network TX pendingNetReq\n");
+		m_pendingNetReq = req;
+	}
+}
+
+void RvmaNicSubComponent::netReqSent(  )
+{
+	m_dbg.debug(CALL_INFO,2,1,"\n");
+	if ( m_sendDmaBlockedEvent ) {
+		m_dbg.debug(CALL_INFO,2,1,"have blocked dma request %d %zu\n",m_sendDmaBlockedEvent->type,m_sendDmaBlockedEvent->length);
+		m_selfLink->send( calcFromHostBW_Latency(m_sendDmaBlockedEvent->length), m_sendDmaBlockedEvent );
+		m_sendDmaBlockedEvent = NULL;
+	} else {
+		m_sendDmaPending = false;
+	}
+}
+
+bool RvmaNicSubComponent::sendNetReq( SimpleNetwork::Request* req )
+{
+	if ( getNetworkLink().spaceToSend( m_vc, req->size_in_bits ) ) {
+		getNetworkLink().send( req, m_vc );
+		return true;
+	}
 	return false;
-}	
+}
+
+SimpleNetwork::Request* RvmaNicSubComponent::makeNetReq( NetworkPkt* pkt, int destNode )
+{
+	m_dbg.debug(CALL_INFO,3,1,"send packet\n");
+	SimpleNetwork::Request* req = new SimpleNetwork::Request();
+	req->dest = destNode;
+	req->src = getNodeNum();
+	req->size_in_bits = pkt->payloadSize()*8;
+	req->vn = m_vc;
+	req->givePayload( pkt );
+	return req;
+}
+
+bool RvmaNicSubComponent::processRecv() {
+	if ( m_recvStartBusy ) {
+		return false;
+	}
+
+	Interfaces::SimpleNetwork::Request* req = getNetworkLink().recv( m_vc );
+	if ( req ) {
+		NetworkPkt* pkt = static_cast<NetworkPkt*>(req->takePayload());
+		m_dbg.debug(CALL_INFO,3,1,"got network packet\n");
+		m_selfLink->send( m_rxLatency, new SelfEvent( pkt ) );
+		m_recvStartBusy = true;
+		delete req;
+	}
+	return false;
+}
 
 void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 {
@@ -398,30 +471,34 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 		m_dbg.debug(CALL_INFO,2,1,"found window %d for virtAddr 0x%" PRIx64 "\n",window,rvmaAddr);
 	}
 
-	m_recvStartBusy = false;
 
 	SelfEvent* event = new SelfEvent( destPid, window, pkt, length, rvmaOffset );
 
-	if ( m_recvDmaPendingCnt ) {
+	if ( m_recvDmaPending ) {
+		m_dbg.debug(CALL_INFO,2,1,"pkt DMA blocking\n");
 		assert( NULL == m_recvDmaBlockedEvent );
 		m_recvDmaBlockedEvent = event;
 	} else {
-		m_selfLink->send( calcBusLatency( length ), event );
+		m_selfLink->send( calcToHostBW_Latency( length ), event );
+		m_recvStartBusy = false;
+		m_recvDmaPending = true;
 	}
-
-	++m_recvDmaPendingCnt;
 }
 
 void RvmaNicSubComponent::processRecvPktFini( int destPid, int window, NetworkPkt* pkt, size_t length, uint64_t rvmaOffset ) 
 {
 	Core& core = m_coreTbl[destPid];
+	m_dbg.debug(CALL_INFO,2,1,"DMA finished destPid=%d window=%d length=%zu offset=%" PRIu64 "\n",destPid, window, length, rvmaOffset);
+
 	Buffer* buffer = core.m_windowTbl[window].recv( rvmaOffset, pkt->payload(), length );
 	if ( NULL == buffer ) {
 		m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find buffer for window %d\n", getNodeNum(), window);
 	}
 	delete pkt;
 
-	--m_recvDmaPendingCnt;
+	if ( m_recvStartBusy ) {
+		m_recvStartBusy = false;
+	}
 
 	if ( buffer && buffer->filled ) { 
 		m_dbg.debug(CALL_INFO,2,1,"buffer filled nBytes=%zu virtAddr=0x%" PRIx64 " count=%zu\n",
@@ -446,8 +523,9 @@ void RvmaNicSubComponent::processRecvPktFini( int destPid, int window, NetworkPk
 	}
 
 	if ( m_recvDmaBlockedEvent ) {
-		m_selfLink->send( calcBusLatency(length), m_recvDmaBlockedEvent );
-		delete m_recvDmaBlockedEvent;
+		m_selfLink->send( calcToHostBW_Latency(length), m_recvDmaBlockedEvent );
 		m_recvDmaBlockedEvent = NULL;
+	} else {
+		m_recvDmaPending = false;
 	}
 }

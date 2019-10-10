@@ -24,6 +24,8 @@
 #include "include/networkPkt.h"
 #include "sst/elements/hermes/rvma.h"
 
+
+using namespace SST::Interfaces;
 namespace SST {
 namespace Aurora {
 namespace RVMA {
@@ -71,81 +73,51 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 	class SendEntry {
 	  public:
-	  	SendEntry( int srcCore, PutCmd* cmd ) : srcCore(srcCore), cmd(cmd), currentOffset(0), completedDMAs(0)  {
-			totalDMAs = cmd->size / RvmaNicSubComponent::getPktSize();
-			if ( cmd->size % RvmaNicSubComponent::getPktSize() ) { 
-				++totalDMAs;
-			}
-		} 
+		SendEntry( int srcCore, PutCmd* cmd ) : srcCore(srcCore), cmd(cmd), currentOffset(0), completedDMAs(0)  { } 
 		~SendEntry() { delete cmd; }
 
-		void incCompletedDMAs() { ++completedDMAs; }
 		void decRemainingBytes( int num ) { currentOffset += num; }
 		int remainingBytes() { return cmd->size - currentOffset; }
 		size_t offset() { return currentOffset + cmd->offset; }
 		int getDestNode() { return cmd->proc.node; }
-		bool done() { return totalDMAs == completedDMAs; }
 		uint64_t virtAddr() { return cmd->virtAddr; }
 		size_t length() { return cmd->size; }
 		int destPid() { return cmd->proc.pid; }
 		void* dataAddr() { return cmd->srcAddr.getBacking(); }
 		int getSrcCore() { return srcCore; }
 	  	PutCmd& getCmd() { return *cmd; }
+		bool isDOne() { return lastPkt; }
 
 	  private:
-		int totalDMAs;
 		int completedDMAs;
 		int     srcCore;
 	  	PutCmd* cmd;
 		size_t currentOffset;
+		bool lastPkt;
 	};
 
 	class SelfEvent : public Event {
 	  public:
-		enum Type { RxLatency, RxDmaDone, SendDMA } type;
-		SelfEvent( int slot, SendEntry* entry ) : Event(), type(SendDMA), slot(slot), entry(entry) {}
+		enum Type { RxLatency, RxDmaDone, TxLatency, TxDmaDone } type;
+		SelfEvent( NetworkPkt* pkt, SendEntry* entry, size_t length, bool lastPkt ) : Event(), type(TxLatency), pkt(pkt),
+						sendEntry(entry), length(length ), lastPkt(lastPkt) {}
+		SelfEvent( NetworkPkt* pkt, SendEntry* entry, bool lastPkt ) : Event(), type(TxDmaDone), pkt(pkt), sendEntry(entry), lastPkt(lastPkt) {}
+
+
 		SelfEvent( NetworkPkt* pkt ) : Event(), type(RxLatency), pkt(pkt) {}
 		SelfEvent( int pid, int window, NetworkPkt* pkt, size_t length, uint64_t rvmaOffset  ) : 
 			Event(), type(RxDmaDone), pid(pid), window(window), pkt(pkt), length(length), rvmaOffset(rvmaOffset) {}
-		int slot;
-		SendEntry* entry;
 		NetworkPkt* pkt;
 		int pid;
 		int window;
 		size_t length;
 		uint64_t rvmaOffset;
+		SendEntry* sendEntry;
+		bool lastPkt;
 
 		NotSerializable(SelfEvent)
+
 	};
-
-
-	class DMAslot {
-		enum { Idle, Wait, Ready } state;
-	  public:
-		DMAslot() : state(Idle) {}	
-
-		void init( NetworkPkt* pkt, int destNode ) {
-			m_pkt = pkt;
-			m_destNode = destNode;	
-			state = Wait;
-		}
-
-		NetworkPkt* pkt() { return m_pkt; }
-
-		bool ready() { return state == Ready; }
-		int getDestNode() { return m_destNode; }
-		void setIdle() { state = Idle; } 
-		void setReady() { state = Ready; }
-
-	  private:
-		NetworkPkt* 	m_pkt;
-		int 			m_destNode;
-	};
-
-	std::vector< DMAslot > m_dmaSlots;
-	int m_firstActiveDMAslot;
-	int m_firstAvailDMAslot;
-	int m_activeDMAslots;
 
 	class Window {
 	  public:
@@ -289,26 +261,18 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
   private:
 
 	bool processSend( Cycle_t );
-	bool processRecv() {
-		if ( m_recvStartBusy || m_recvDmaPendingCnt > 1 ) {
-			return false;
-		}
-
-		Interfaces::SimpleNetwork::Request* req = getNetworkLink().recv( m_vc );
-    	if ( req ) {
-        	NetworkPkt* pkt = static_cast<NetworkPkt*>(req->takePayload());
-			m_dbg.debug(CALL_INFO,3,1,"got network packet\n");
-			m_selfLink->send( m_rxLatency, new SelfEvent( pkt ) );
-			m_recvStartBusy = true;
-			delete req;
-		}
-		return false;
-	}
+	bool processRecv();
+	void processSendPktStart( NetworkPkt*, SendEntry*, size_t length, bool lastPkt );
+	void processSendPktFini( NetworkPkt*, SendEntry*, bool lastPkt );
 	void processRecvPktStart( NetworkPkt* );
 	void processRecvPktFini( int pid, int window, NetworkPkt*, size_t length, uint64_t rvmaOffset );
 	void setNumCores( int num );
 	void initWindow( int coreNum, Event* event );
 	void closeWindow( int coreNum, Event* event );
+
+	SimpleNetwork::Request* makeNetReq( NetworkPkt* pkt, int destNode );
+	bool sendNetReq( SimpleNetwork::Request* );
+	void netReqSent( );
 
 	void incEpoch( int coreNum, Event* event );
 	void getEpoch( int coreNum, Event* event );
@@ -319,8 +283,8 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 	void mwait( int coreNum, Event* event );
 
 	void handleSelfEvent( Event* );
+	void handleSelfEvent( SelfEvent* );
 	bool processSendQ( Cycle_t cycle );
-	int processDMAslots();
 
 	struct Core {
 		Core() : m_mwaitCmd(NULL) {}
@@ -355,9 +319,16 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 	int m_vc;
 	bool m_recvStartBusy;
-	int m_recvDmaPendingCnt;
+	bool m_recvDmaPending;
+
+	bool m_sendStartBusy;
+	bool m_sendDmaPending;
 
 	SelfEvent* m_recvDmaBlockedEvent;
+	SelfEvent* m_sendDmaBlockedEvent;
+
+	std::queue<SelfEvent*> m_selfEventQ;
+	SimpleNetwork::Request* m_pendingNetReq;
 };
 
 }
