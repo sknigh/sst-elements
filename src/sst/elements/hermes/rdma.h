@@ -33,6 +33,7 @@ typedef uint16_t RqId;
 typedef uint16_t MemRegionId;
 
 struct Status {
+	Status( ) : length(-1) {}
 	Hermes::ProcAddr procAddr;
 	size_t length;
 	Hermes::MemAddr addr;
