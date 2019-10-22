@@ -75,14 +75,14 @@ class NicSubComponent : public SubComponent {
   protected:
 
 	SimTime_t calcToHostBW_Latency( size_t length ) {
-		//printf("%s() length=%zu BW=%" PRIu64 " latency=%" PRIu64 "\n",
-		//__func__,length, m_toHostBandwidth, (SimTime_t) ( ( (double) length / m_toHostBandwidth ) * 1000000000.0 ) );
+        m_dbg.debug(CALL_INFO,1,2,"length=%zu BW=%f latency=%" PRIu64 "\n",
+					length, m_toHostBandwidth, (SimTime_t) ( ( (double) length / m_toHostBandwidth ) * 1000000000.0 ) );
 		return ( ( (double) length / m_toHostBandwidth ) * 1000000000.0 ); 
     }
 
 	SimTime_t calcFromHostBW_Latency( size_t length ) {
-		//printf("%s() length=%zu BW=%" PRIu64 " latency=%" PRIu64 "\n",
-		//__func__,length, m_fromHostBandwidth, (SimTime_t) ( ( (double) length / m_busBandwidth ) * 1000000000.0 ) );
+		m_dbg.debug(CALL_INFO,1,2,"length=%zu BW=%f latency=%" PRIu64 "\n",
+					length, m_fromHostBandwidth, (SimTime_t) ( ( (double) length / m_fromHostBandwidth ) * 1000000000.0 ) );
 		return ( ( (double) length / m_fromHostBandwidth ) * 1000000000.0 ); 
     }
 
