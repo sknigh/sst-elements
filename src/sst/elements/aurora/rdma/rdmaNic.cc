@@ -31,7 +31,10 @@ const char* RdmaNicSubComponent::m_cmdName[] = {
 const char* RdmaNicSubComponent::protoNames[] = {"Message","RdmaRead","RdmaWrite"};
 
 RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params),
-   	m_vc(0), m_firstActiveDMAslot(0), m_firstAvailDMAslot(0), m_activeDMAslots(0), m_streamIdCnt(0), m_availRecvDmaEngines(0), m_clockCnt(0)
+   	m_vc(0), m_streamIdCnt(0), m_clockCnt(0),
+	m_recvStartBusy(false), m_recvDmaPending(false), m_recvDmaBlockedEvent(NULL),
+    m_sendStartBusy(false), m_sendDmaPending(false), m_sendDmaBlockedEvent(NULL),
+    m_pendingNetReq(NULL)
 {
 
    if ( params.find<bool>("print_all_params",false) ) {
@@ -52,9 +55,6 @@ RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : N
 	m_cmdFuncTbl[NicCmd::RegisterMem] = &RdmaNicSubComponent::registerMem;
 	m_cmdFuncTbl[NicCmd::Read] = &RdmaNicSubComponent::read;
 	m_cmdFuncTbl[NicCmd::Write] = &RdmaNicSubComponent::write;
-
-	m_dmaSlots.resize( params.find<int>("numDmaSlots",32) );
-	m_availRecvDmaEngines =  params.find<int>("numDmaSlots",32 );
 }
 
 void RdmaNicSubComponent::setup()
@@ -73,7 +73,9 @@ void RdmaNicSubComponent::handleEvent( int core, Event* event ) {
 
   	m_dbg.debug(CALL_INFO,1,2,"\n");
 
-	if ( ! m_clocking ) { startClocking(); } 
+	if ( ! m_clocking ) {
+		startClocking();
+	} 
 
 	NicCmd* cmd = static_cast<NicCmd*>(event); 
     m_dbg.debug(CALL_INFO,2,EVENT_DEBUG_MASK,"%s\n",m_cmdName[cmd->type]);
@@ -85,52 +87,67 @@ bool RdmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 
 	++m_clockCnt;
 
-	bool stop = true;
+   m_dbg.debug(CALL_INFO,3,1,"\n");
 
-	if ( m_availRecvDmaEngines ) {
-		if ( processRecv() ) {
-    		m_dbg.debug(CALL_INFO,1,2,"nothing to receive\n");
-		} else {
-			stop = false;	
-		}
-	}
+    if ( m_pendingNetReq && sendNetReq( m_pendingNetReq ) ) {
+        m_dbg.debug(CALL_INFO,2,1,"sent pendingNetReq\n");
+        m_pendingNetReq = NULL;
+        netReqSent();
+    }
 
-	int ret1 = processRdmaSendQ(cycle);
-	int ret2 = processDMAslots();
+    while ( ! m_selfEventQ.empty() ) {
+        handleSelfEvent( m_selfEventQ.front() );
+        m_selfEventQ.pop();
+    }
 
-	if ( ret1 == 0 && ret2 == 0 ) {
-    	m_dbg.debug(CALL_INFO,1,2,"no send work\n");
-	} else if ( ret1 == 2 || ret2 == 2 ) {
-    	m_dbg.debug(CALL_INFO,1,2,"blocked on send\n");
-	} else {
-		stop = false;	
-    	m_dbg.debug(CALL_INFO,1,2,"check send work next clock\n");
-	}
+    bool stop = processRecv() && processSend( cycle );
 
-	if ( processSendQ(cycle) ) {
-    	m_dbg.debug(CALL_INFO,1,2,"processSendQ blocked\n");
-	} else {
-		stop = false;	
-	}	
 
-	if (stop) {
-		stopClocking( cycle );
-	}
-	return stop; 
+    if ( stop ) {
+        stopClocking(cycle);
+    }
+
+    return stop;
+}
+
+bool RdmaNicSubComponent::processSend( Cycle_t cycle ) {
+    return processSendQ(cycle);
 }
 
 void RdmaNicSubComponent::handleSelfEvent( Event* e ) {
+    SelfEvent* event = static_cast<SelfEvent*>(e);
 
-	SelfEvent& event = *static_cast<SelfEvent*>(e);
+    if ( ! m_clocking ) { 
+		startClocking(); 
+	}
 
-  	m_dbg.debug(CALL_INFO,1,2,"\n");
+    m_selfEventQ.push( event );
+}
 
-	if ( ! m_clocking ) { startClocking(); } 
+void RdmaNicSubComponent::handleSelfEvent( SelfEvent* event ) {
 
-	Callback& callback = *event.callback;
-	callback();
-	delete event.callback;
-	delete e;
+    m_dbg.debug(CALL_INFO,2,1,"type %d\n",event->type);
+    switch ( event->type ) {
+      case SelfEvent::TxLatency:
+        processSendPktStart( event->pkt, event->sendEntry, event->length, event->lastPkt  );
+        break;
+
+      case SelfEvent::TxDmaDone:
+        processSendPktFini( event->pkt, event->sendEntry, event->lastPkt  );
+        break;
+
+      case SelfEvent::RxLatency:
+        processRecvPktStart( event );
+        break;
+
+      case SelfEvent::RxDmaDone:
+		processRecvPktFini( event );
+        break;
+
+      default:
+        assert(0);
+    }
+    delete event;
 }
 
 void RdmaNicSubComponent::createRQ( int coreNum, Event* event ) {
@@ -171,7 +188,7 @@ void RdmaNicSubComponent::send( int coreNum, Event* event ) {
     m_dbg.debug(CALL_INFO,1,SEND_DEBUG_MASK,"nid=%d pid=%d size=%zu rqId=%" PRIu16 " srcAddr=0x%" PRIx64 " backing=%p\n",
             cmd->proc.node, cmd->proc.pid, cmd->length,cmd->rqId, cmd->src.getSimVAddr(), cmd->src.getBacking());
 
-    m_sendQ.push( new MsgSendEntry( m_streamIdCnt++, coreNum, cmd ) );
+    m_sendQ.push_back( new MsgSendEntry( m_streamIdCnt++, coreNum, cmd ) );
 
     sendResp( coreNum, new RetvalResp(0) );
 }
@@ -227,24 +244,7 @@ void RdmaNicSubComponent::read( int coreNum, Event* event ) {
     m_dbg.debug(CALL_INFO,1,2,"node=%d pid=%d destAddr=0x%" PRIx64 " srcAddr=0x%" PRIx64 " length=%zu\n", 
 			cmd->proc.node, cmd->proc.pid, cmd->destAddr.getSimVAddr(), cmd->srcAddr, cmd->length );
 	
-	NetworkPkt* pkt = new NetworkPkt( getPktSize() );
-
-	pkt->setSrcNid( getNodeNum() );
-	pkt->setSrcPid( coreNum );
-	pkt->setDestPid( cmd->proc.pid );
-
-	pkt->setProto( RdmaRead );
-	pkt->setHead();
-
-	Hermes::RDMA::Addr destAddr = cmd->destAddr.getSimVAddr();
-
-	pkt->payloadPush( &destAddr, sizeof( destAddr ) );
-	pkt->payloadPush( &cmd->srcAddr, sizeof( cmd->srcAddr) );
-	pkt->payloadPush( &cmd->length, sizeof( cmd->length ) );
-
-	m_rdmaSendQ.push( std::pair<NetworkPkt*,int>( pkt, cmd->proc.node ) );
-
-	delete cmd;
+    m_sendQ.push_back( new RdmaReadEntry( coreNum, cmd ) );
 }
 
 void RdmaNicSubComponent::write( int coreNum, Event* event ) {
@@ -262,173 +262,249 @@ void RdmaNicSubComponent::write( int coreNum, Event* event ) {
 		}; 
 	entry->setCallback( callback );
 
-	m_sendQ.push( entry );
+	m_sendQ.push_back( entry );
 
 	delete cmd;
 }
 
-int RdmaNicSubComponent::processRdmaSendQ( Cycle_t cycle ) 
-{
-	if ( ! m_rdmaSendQ.empty() ) {
-		NetworkPkt* pkt = m_rdmaSendQ.front().first; 
-		int sizeInBits = pkt->payloadSize()*8;
-		if ( getNetworkLink().spaceToSend( m_vc, sizeInBits ) ) { 
-			SimpleNetwork::Request* req = new SimpleNetwork::Request();	
-			req->dest = m_rdmaSendQ.front().second; 
-			req->src = getNodeNum();
-			req->size_in_bits = sizeInBits; 
-			req->vn = m_vc;
-			req->givePayload( pkt );
-			m_rdmaSendQ.pop();
-			m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"send packet to node=%" PRIu64 "\n",req->dest);
-			getNetworkLink().send( req, m_vc );
-			return 1;
-		} else {
-			m_dbg.debug(CALL_INFO,2,1,"can't send packet because network is busy\n");
-			return 2;
-		}
-	}
-	return 0;
-}
-
 bool RdmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
-	if ( ! m_sendQ.empty() && m_activeDMAslots < m_dmaSlots.size() ) {
-		SendEntry& entry = *m_sendQ.front();
+	m_dbg.debug(CALL_INFO,3,SEND_DEBUG_MASK,"%d %d %d\n",! m_sendQ.empty(), m_sendStartBusy, m_pendingNetReq != NULL);
 
-		int slot = m_firstAvailDMAslot;
+	if ( m_sendQ.empty() || m_sendStartBusy || m_pendingNetReq ) {
+        return true;
+    }
+	SendEntry& entry = *m_sendQ.front();
 
-		m_firstAvailDMAslot = (m_firstAvailDMAslot + 1) % m_dmaSlots.size();
-		m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"slot %d\n",slot);
+	NetworkPkt* pkt = new NetworkPkt( getPktSize() );
 
-		++m_activeDMAslots;
+	m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"protocol %s\n",protoNames[entry.pktProtocol()]);
+	pkt->setSrcNid( getNodeNum() );
+	pkt->setSrcPid( entry.getSrcCore() );
+	pkt->setDestPid( entry.destPid() );
+	pkt->setProto( entry.pktProtocol() );
+	pkt->setStreamId( entry.streamId() );
+	pkt->setStreamOffset( entry.streamOffset() );
 
-		NetworkPkt* pkt = new NetworkPkt( getPktSize() );
+	if ( entry.isHead() ) {
 
-		m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"protocol %s\n",protoNames[entry.pktProtocol()]);
-		pkt->setSrcNid( getNodeNum() );
-		pkt->setSrcPid( entry.srcPid() );
-		pkt->setDestPid( entry.destPid() );
-		pkt->setProto( entry.pktProtocol() );
-		pkt->setStreamId( entry.streamId() );
-		pkt->setStreamOffset( entry.streamOffset() );
+		pkt->setHead();
 
-		if ( entry.isHead() ) {
+		if ( entry.pktProtocol() == Message ) {
+			MsgSendEntry* msgEntry = static_cast<MsgSendEntry*>(&entry);
 
-			pkt->setHead();
+			Hermes::RDMA::RqId rqId = msgEntry->rqId();  
+			pkt->payloadPush( &rqId, sizeof( rqId ) );
+			m_dbg.debug(CALL_INFO,1,SEND_DEBUG_MASK,"message stream %d head pkt rqId=%d\n", entry.streamId(), (int)rqId);
 
-			if ( entry.pktProtocol() == Message ) {
-				MsgSendEntry* msgEntry = static_cast<MsgSendEntry*>(&entry);
+		} else if ( entry.pktProtocol() == RdmaRead ) {
 
-				Hermes::RDMA::RqId rqId = msgEntry->rqId();  
-				pkt->payloadPush( &rqId, sizeof( rqId ) );
-				m_dbg.debug(CALL_INFO,1,SEND_DEBUG_MASK,"message stream %d head pkt rqId=%d\n", entry.streamId(), (int)rqId);
-			}  else {
-				RdmaWriteEntry* writeEntry = static_cast<RdmaWriteEntry*>(&entry);
+			RdmaReadEntry* readEntry = static_cast<RdmaReadEntry*>(&entry);
 
-				int readResp = 0;
-				if ( writeEntry->isReadResp() ) {
-					readResp = 1;
-				}
-				pkt->payloadPush( &readResp, sizeof(readResp) );
+			Hermes::RDMA::Addr destAddr = readEntry->getDestAddr();
+			Hermes::RDMA::Addr srcAddr = readEntry->getSrcAddr();
+			pkt->payloadPush( &destAddr, sizeof( destAddr ) );
+			pkt->payloadPush( &srcAddr, sizeof( srcAddr) );
+			readEntry->decRemainingBytes( readEntry->length() );
 
-				Hermes::RDMA::Addr destAddr = writeEntry->destAddr();
-				pkt->payloadPush( &destAddr, sizeof(destAddr) );
-				m_dbg.debug(CALL_INFO,1,SEND_DEBUG_MASK,"rdma write, stream %d, head pkt, target addr=0x%" PRIx64 "\n",entry.streamId(), destAddr);
+		}  else {
+			RdmaWriteEntry* writeEntry = static_cast<RdmaWriteEntry*>(&entry);
+
+			int readResp = 0;
+			if ( writeEntry->isReadResp() ) {
+				readResp = 1;
 			}
+			pkt->payloadPush( &readResp, sizeof(readResp) );
 
-			size_t length = entry.length();	
-			pkt->payloadPush( &length, sizeof( length ) );
-			m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"head packet, stream length=%zu\n", length );
+			Hermes::RDMA::Addr destAddr = writeEntry->destAddr();
+			pkt->payloadPush( &destAddr, sizeof(destAddr) );
+			m_dbg.debug(CALL_INFO,1,SEND_DEBUG_MASK,"rdma write, stream %d, head pkt, target addr=0x%" PRIx64 "\n",entry.streamId(), destAddr);
 		}
 
-		int bytesLeft = pkt->pushBytesLeft();
-		m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"pkt space avail %d\n",bytesLeft);
-		int payloadSize = entry.remainingBytes() <  bytesLeft ? entry.remainingBytes() : bytesLeft;  
+		size_t length = entry.length();	
+		pkt->payloadPush( &length, sizeof( length ) );
+		m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"head packet, stream length=%zu\n", length );
+	}
 
-		pkt->payloadPush( entry.getBacking(), payloadSize );
+	int bytesLeft = pkt->pushBytesLeft();
+	m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"pkt space avail %d\n",bytesLeft);
+	int payloadSize = entry.remainingBytes() <  bytesLeft ? entry.remainingBytes() : bytesLeft;  
 
-		m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"payloadSize %d\n",payloadSize);
-		entry.decRemainingBytes( payloadSize );
+	pkt->payloadPush( entry.getBacking(), payloadSize );
 
-		m_dmaSlots[slot].init( pkt, entry.destNode() ); 
+	m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"payloadSize %d\n",payloadSize);
+	entry.decRemainingBytes( payloadSize );
 
-		SimTime_t delay = 0; 
+	m_sendStartBusy = true;
 
-		SendEntry* tmp = &entry;
-		Callback* callback = new Callback;
-		*callback = [=]() { 
-			m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",2,SEND_DEBUG_MASK,"back from self delay for DMA slot %d\n",slot);
-			m_dmaSlots[slot].setReady();	
-			tmp->incCompletedDMAs();
-			if ( tmp->done() ) {
-				m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,SEND_DEBUG_MASK,"delete SendEntry\n");
-				delete tmp;
-			}
-		};
-		m_selfLink->send( delay, new SelfEvent( callback ) );
+	m_selfLink->send( m_txLatency, new SelfEvent( pkt, &entry, payloadSize, 0 == entry.remainingBytes() ) );
 
-		if ( 0 == entry.remainingBytes() ) {
-			m_dbg.debug(CALL_INFO,1,SEND_DEBUG_MASK,"send entry DMA requests done\n");
-			m_sendQ.pop();
-		}
-	}	
-	return m_activeDMAslots == m_dmaSlots.size() || m_sendQ.empty();
+	if ( 0 == entry.remainingBytes() ) {
+		m_dbg.debug(CALL_INFO,1,SEND_DEBUG_MASK,"all pkts generated, pop sendQ\n");
+		m_sendQ.pop_front();
+	}
+	return true;
 }
 
-int RdmaNicSubComponent::processDMAslots() 
-{
-	if ( m_activeDMAslots && m_dmaSlots[m_firstActiveDMAslot].ready() ) {
-		m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"packet is ready\n");
-		DMAslot& slot = m_dmaSlots[m_firstActiveDMAslot]; 
-		NetworkPkt* pkt = slot.pkt();
+void RdmaNicSubComponent::processSendPktStart( NetworkPkt* pkt, SendEntry* entry, size_t length, bool lastPkt ) {
 
-		int sizeInBits = pkt->payloadSize()*8;
-		if ( getNetworkLink().spaceToSend( m_vc, sizeInBits ) ) { 
-			SimpleNetwork::Request* req = new SimpleNetwork::Request();	
-			req->dest = slot.getDestNode();
-			req->src = getNodeNum();
-			req->size_in_bits = sizeInBits; 
-			req->vn = m_vc;
-			req->givePayload( pkt );
-			m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"send packet to node=%" PRIu64 "\n",req->dest);
-			getNetworkLink().send( req, m_vc );
-			slot.setIdle();
-			m_firstActiveDMAslot = (m_firstActiveDMAslot + 1) % m_dmaSlots.size();
-			--m_activeDMAslots;
-			return 1;
-		} else {
-			m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"can't send packet because network is busy\n");
-			return 2;
-		}
-	}	
-	return 0;
-}	
+    m_dbg.debug(CALL_INFO,2,1,"pkt send start latency complete\n");
 
-void RdmaNicSubComponent::processPkt( NetworkPkt* pkt ) 
+    SelfEvent* event = new SelfEvent( pkt, entry, lastPkt );
+
+    if ( m_sendDmaPending ) {
+        m_dbg.debug(CALL_INFO,2,1,"pkt DMA blocked\n");
+        assert( NULL == m_sendDmaBlockedEvent );
+        event->length = length;
+        m_sendDmaBlockedEvent = event;
+        m_dbg.debug(CALL_INFO,2,1,"have blocked dma request %d %zu\n",m_sendDmaBlockedEvent->type,m_sendDmaBlockedEvent->length);
+    } else {
+        m_dbg.debug(CALL_INFO,2,1,"start DMA xfer delay\n");
+        m_sendStartBusy = false;
+        m_sendDmaPending = true;
+        m_selfLink->send( calcFromHostBW_Latency( length ), event );
+    }
+}
+
+void RdmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry, bool lastPkt ) {
+
+    m_dbg.debug(CALL_INFO,2,1,"pkt send DMA latency complete\n");
+
+    m_sendStartBusy = false;
+
+    SimpleNetwork::Request* req = makeNetReq( pkt, entry->getDestNode() );
+
+    if ( lastPkt ) {
+        m_dbg.debug(CALL_INFO,2,1,"send entry DMA's done\n");
+        int srcCore = entry->getSrcCore();
+        delete entry;
+    }
+
+    if ( sendNetReq( req ) ) {
+        m_dbg.debug(CALL_INFO,2,1,"send packet\n");
+        netReqSent();
+    } else {
+        m_dbg.debug(CALL_INFO,2,1,"blocking on network TX pendingNetReq\n");
+        m_pendingNetReq = req;
+    }
+}
+
+void RdmaNicSubComponent::netReqSent(  )
 {
+    m_dbg.debug(CALL_INFO,2,1,"\n");
+    if ( m_sendDmaBlockedEvent ) {
+        m_dbg.debug(CALL_INFO,2,1,"have blocked dma request %d %zu\n",m_sendDmaBlockedEvent->type,m_sendDmaBlockedEvent->length);
+        m_selfLink->send( calcFromHostBW_Latency(m_sendDmaBlockedEvent->length), m_sendDmaBlockedEvent );
+        m_sendDmaBlockedEvent = NULL;
+    } else {
+        m_sendDmaPending = false;
+    }
+}
+
+bool RdmaNicSubComponent::sendNetReq( Interfaces::SimpleNetwork::Request* req )
+{
+    if ( getNetworkLink().spaceToSend( m_vc, req->size_in_bits ) ) {
+    	m_dbg.debug(CALL_INFO,2,1,"success\n");
+        getNetworkLink().send( req, m_vc );
+        return true;
+    }
+   	m_dbg.debug(CALL_INFO,2,1,"blocked on network\n");
+    return false;
+}
+
+Interfaces::SimpleNetwork::Request* RdmaNicSubComponent::makeNetReq( NetworkPkt* pkt, int destNode )
+{
+    m_dbg.debug(CALL_INFO,3,1,"send packet\n");
+    Interfaces::SimpleNetwork::Request* req = new SimpleNetwork::Request();
+    req->dest = destNode;
+    req->src = getNodeNum();
+    req->size_in_bits = pkt->payloadSize()*8;
+    req->vn = m_vc;
+    req->givePayload( pkt );
+    return req;
+}
+
+bool RdmaNicSubComponent::processRecv() {
+    if ( m_recvStartBusy ) {
+        return true;
+    }
+
+    Interfaces::SimpleNetwork::Request* req = getNetworkLink().recv( m_vc );
+    if ( req ) {
+        NetworkPkt* pkt = static_cast<NetworkPkt*>(req->takePayload());
+        m_dbg.debug(CALL_INFO,3,1,"got network packet\n");
+        m_selfLink->send( m_rxLatency, new SelfEvent( pkt ) );
+        m_recvStartBusy = true;
+        delete req;
+    }
+    return true;
+}
+
+
+void RdmaNicSubComponent::processRecvPktStart( SelfEvent* e )
+{
+	NetworkPkt* pkt = e->pkt;
+	SelfEvent* event = NULL;
 	m_dbg.debug(CALL_INFO,2,RECV_DEBUG_MASK,"pkt is protocol %s\n",protoNames[pkt->getProto()]);
 
 	switch ( pkt->getProto() ) {
 	  case Message:
-		processMsg( pkt );
+		event = processMsgPktStart( pkt );
 		break;
 	  case RdmaRead:
-		processRdmaRead( pkt );
+		processRdmaReadPkt( pkt );
 		break;
 	  case RdmaWrite:
-		processRdmaWrite( pkt );
+		event = processRdmaWritePktStart( pkt );
 		break;
+	}
+
+	if ( event ) {
+    	if ( m_recvDmaPending ) {
+        	m_dbg.debug(CALL_INFO,2,1,"pkt DMA blocking\n");
+        	assert( NULL == m_recvDmaBlockedEvent );
+        	m_recvDmaBlockedEvent = event;
+    	} else {
+        	m_selfLink->send( calcToHostBW_Latency( event->length ), event );
+        	m_recvStartBusy = false;
+        	m_recvDmaPending = true;
+    	}
 	}
 }
 
+void RdmaNicSubComponent::processRecvPktFini( SelfEvent* event )
+{
+	NetworkPkt* pkt = event->pkt;
+	m_dbg.debug(CALL_INFO,2,RECV_DEBUG_MASK,"pkt is protocol %s\n",protoNames[pkt->getProto()]);
 
-void RdmaNicSubComponent::processMsg( NetworkPkt* pkt )
+    m_recvStartBusy = false;
+
+	switch ( pkt->getProto() ) {
+	  case Message:
+        processMsgPktFini( event->buffer, event->pkt, event->length );
+		break;
+	  case RdmaWrite:
+		processRdmaWritePktFini( event->pkt );
+		break;
+	  case RdmaRead:
+		assert(0);
+		break;
+	}
+
+    if ( m_recvDmaBlockedEvent ) {
+        m_selfLink->send( calcToHostBW_Latency(m_recvDmaBlockedEvent->length), m_recvDmaBlockedEvent );
+        m_recvDmaBlockedEvent = NULL;
+    } else {
+        m_recvDmaPending = false;
+    }
+}
+
+RdmaNicSubComponent::SelfEvent* RdmaNicSubComponent::processMsgPktStart( NetworkPkt* pkt )
 {
 	int destPid = pkt->getDestPid();
 	int srcPid = pkt->getSrcPid();
 	int srcNid = pkt->getSrcNid();
-	size_t length = pkt->popBytesLeft();
+	size_t xferLen = pkt->popBytesLeft();
 
 	assert( destPid < m_coreTbl.size() );
 	Core& core = m_coreTbl[destPid];
@@ -439,95 +515,80 @@ void RdmaNicSubComponent::processMsg( NetworkPkt* pkt )
 	RecvBuf* buffer = NULL;
 	if ( pkt->isHead() ) {
 		Hermes::RDMA::RqId rqId;
-		size_t length;
+		size_t msgLength;
 		pkt->payloadPop( &rqId, sizeof( rqId ) );
-		pkt->payloadPop( &length, sizeof( length ) );
-		m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"head rdId=%d length=%zu\n", (int) rqId, length );
+		pkt->payloadPop( &msgLength, sizeof( msgLength ) );
+		m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"head rdId=%d msgLength=%zu\n", (int) rqId, msgLength );
 
+ 		xferLen = pkt->popBytesLeft();
 		assert ( ! core.activeStream( srcNid, srcPid ) ); 
 
-		buffer = core.findRecvBuf( rqId, length );
+		buffer = core.findRecvBuf( rqId, msgLength );
 		m_dbg.debug(CALL_INFO,1,2,"rqId=%d m_rqs.size=%zu\n", rqId, core.m_rqs[rqId].size() );
 
 		if ( ! buffer ) {
 			m_dbg.output("RDMA NIC %d rdId %d no buffer\n", getNodeNum(), (int) rqId);
 			assert(0);
 		} else {
-			buffer->setRecvLength( length );
+			buffer->setRecvLength( msgLength );
 			buffer->setRqId( rqId );
 			buffer->setProc( srcNid, srcPid );
-			core.setActiveBuf( srcNid, srcPid, buffer );
+
+			if ( xferLen != msgLength ) {
+				core.setActiveBuf( srcNid, srcPid, buffer );
+			}
 		}
 	} else {
 		buffer = core.findActiveBuf( srcNid, srcPid  );
+		if ( buffer->isLastPkt( xferLen ) ) {
+			m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"buffer is done clear active stream\n");
+			core.clearActiveStream( srcNid, srcPid );
+		} 
 	}
-	--m_availRecvDmaEngines;
+
+    return new SelfEvent( pkt, buffer, xferLen );
+}
+
+void RdmaNicSubComponent::processMsgPktFini( RecvBuf* buffer, NetworkPkt* pkt, size_t length )
+{
+	int destPid = pkt->getDestPid();
+	int srcPid = pkt->getSrcPid();
+	int srcNid = pkt->getSrcNid();
+	Core& core = m_coreTbl[destPid];
+    m_dbg.debug(CALL_INFO,2,1,"DMA finished destPid=%d length=%zu\n",destPid, length );
 
 	if ( buffer ) {
 
 		if ( buffer->recv( pkt->payload(), pkt->popBytesLeft() ) ) {
 			m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"buffer is done clear active stream\n");
-			core.clearActiveStream( srcNid,srcPid);
 		}
 
-		Callback* callback = new Callback;
-		*callback = [=]() {
-			++m_availRecvDmaEngines;
-			Core& core = m_coreTbl[destPid];
-			m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 2, RECV_DEBUG_MASK, "DMA done\n");
+		m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 2, RECV_DEBUG_MASK, "DMA done\n");
 
-			if ( buffer->isComplete() ) {
-				core.pushReadyBufs( buffer );
-				m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "buffer is complete\n");
-				if ( core.m_checkRqCmd ) {
-					Hermes::RDMA::Status status;
-					if ( core.checkRqStatus( buffer->rqId(), status ) ) {
-						m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "wake up checkRQ\n");
-   						sendResp( destPid, new CheckRqResp( status, 1) );
-						core.popReadyBuf( buffer->rqId() );
-						delete core.m_checkRqCmd;
-						core.m_checkRqCmd = NULL;
-						delete buffer;
-					}
+		if ( buffer->isComplete() ) {
+			core.pushReadyBufs( buffer );
+			m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "buffer is complete\n");
+			if ( core.m_checkRqCmd ) {
+				Hermes::RDMA::Status status;
+				if ( core.checkRqStatus( buffer->rqId(), status ) ) {
+					m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "wake up checkRQ\n");
+   					sendResp( destPid, new CheckRqResp( status, 1) );
+					core.popReadyBuf( buffer->rqId() );
+					delete core.m_checkRqCmd;
+					core.m_checkRqCmd = NULL;
+					delete buffer;
 				}
-			}	
-			delete pkt;
-		};
-		m_selfLink->send( 0, new SelfEvent( callback ) );
+			}
+		}	
 	} else {
 		m_dbg.output("NIC %d dump msg pkt from nid=%d pid=%d\n", getNodeNum(), srcNid, srcPid );
-		delete pkt;
 	}
 
-}
-void RdmaNicSubComponent::processRdmaRead( NetworkPkt* pkt )
-{
-	int destPid = pkt->getDestPid();
-    assert( destPid < m_coreTbl.size() );
-    Core& core = m_coreTbl[destPid];
-
-	Hermes::RDMA::Addr srcAddr;
-	Hermes::RDMA::Addr destAddr;
-	size_t length;
-
-	pkt->payloadPop( &destAddr, sizeof( destAddr) );
-	pkt->payloadPop( &srcAddr, sizeof( srcAddr ) );
-	pkt->payloadPop( &length, sizeof( length ) );
-
-	m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"srcNid=%d srcPid %d destPid %d Read srcAddr=0x%" PRIx64 " destAddr=0x%" PRIx64 " length=%zu \n",
-			pkt->getSrcNid(), pkt->getSrcPid(), pkt->getDestPid(), srcAddr, destAddr, length);
-
-	Hermes::MemAddr srcMemAddr;
-	if ( core.findMemAddr( srcAddr, length, srcMemAddr ) ) {
-		m_sendQ.push( new RdmaWriteEntry( m_streamIdCnt++, pkt->getDestPid(), pkt->getSrcNid(), pkt->getSrcPid(),
-								srcMemAddr, destAddr, length, true ) );
-	} else {
-		m_dbg.output("NIC %d RdmaRead dump pkt from nid=%d pid=%d\n", getNodeNum(), pkt->getSrcNid(), pkt->getSrcPid() );
-	}
 	delete pkt;
 }
 
-void RdmaNicSubComponent::processRdmaWrite( NetworkPkt* pkt )
+
+RdmaNicSubComponent::SelfEvent* RdmaNicSubComponent::processRdmaWritePktStart( NetworkPkt* pkt )
 {
 	int destPid = pkt->getDestPid();
     Core& core = m_coreTbl[destPid];
@@ -550,30 +611,58 @@ void RdmaNicSubComponent::processRdmaWrite( NetworkPkt* pkt )
 			core.m_rdmaRecvMap[ pkt->getStreamId() ] = new RdmaRecvEntry( destMemAddr, length, (bool) isReadResp );
 		} else {
 			m_dbg.output("RDMA NIC %d dump pkt from nid=%d pid=%d\n", getNodeNum(), pkt->getSrcNid(), pkt->getSrcPid() );
-			return;
+			return NULL;
 		}
 		
 	} else {
 		m_dbg.debug(CALL_INFO,2,RECV_DEBUG_MASK,"body pkt\n" );
 		assert( core.m_rdmaRecvMap.find( pkt->getStreamId() ) != core.m_rdmaRecvMap.end() );
 	}
-	--m_availRecvDmaEngines;
 
-	Callback* callback = new Callback;
-	*callback = [=]() {
-		++m_availRecvDmaEngines;
-    	Core& core = m_coreTbl[pkt->getDestPid()];
-		if ( core.m_rdmaRecvMap[ pkt->getStreamId() ]->recv( pkt->payload(), pkt->getStreamOffset(), pkt->popBytesLeft() )  ) {
-			m_dbg.debug(CALL_INFO_LAMBDA,"processRdmaWrite",1,RECV_DEBUG_MASK,"stream %d is done\n",pkt->getStreamId());
-			if ( core.m_rdmaRecvMap[ pkt->getStreamId() ]->isReadResp() ) {
-   				sendResp( pkt->getDestPid(), new RetvalResp( 0 ) );
-    		}
-			delete core.m_rdmaRecvMap[ pkt->getStreamId() ];
-			core.m_rdmaRecvMap.erase( pkt->getStreamId() );
-		}
+    return new SelfEvent( pkt, pkt->popBytesLeft() );
+}
 
-		delete pkt;
-	};
+void RdmaNicSubComponent::processRdmaWritePktFini( NetworkPkt* pkt )
+{
+	int destPid = pkt->getDestPid();
+   	Core& core = m_coreTbl[pkt->getDestPid()];
+	if ( core.m_rdmaRecvMap[ pkt->getStreamId() ]->recv( pkt->payload(), pkt->getStreamOffset(), pkt->popBytesLeft() )  ) {
+		m_dbg.debug(CALL_INFO_LAMBDA,"processRdmaWrite",1,RECV_DEBUG_MASK,"stream %d is done\n",pkt->getStreamId());
+		if ( core.m_rdmaRecvMap[ pkt->getStreamId() ]->isReadResp() ) {
+   			sendResp( pkt->getDestPid(), new RetvalResp( 0 ) );
+   		}
+		delete core.m_rdmaRecvMap[ pkt->getStreamId() ];
+		core.m_rdmaRecvMap.erase( pkt->getStreamId() );
+	}
 
-	m_selfLink->send( 0, new SelfEvent( callback ) );
+	delete pkt;
+}
+
+void RdmaNicSubComponent::processRdmaReadPkt( NetworkPkt* pkt )
+{
+	int destPid = pkt->getDestPid();
+    assert( destPid < m_coreTbl.size() );
+    Core& core = m_coreTbl[destPid];
+
+    m_recvStartBusy = false;
+
+	Hermes::RDMA::Addr srcAddr;
+	Hermes::RDMA::Addr destAddr;
+	size_t length;
+
+	pkt->payloadPop( &destAddr, sizeof( destAddr) );
+	pkt->payloadPop( &srcAddr, sizeof( srcAddr ) );
+	pkt->payloadPop( &length, sizeof( length ) );
+
+	m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"srcNid=%d srcPid %d destPid %d Read srcAddr=0x%" PRIx64 " destAddr=0x%" PRIx64 " length=%zu \n",
+			pkt->getSrcNid(), pkt->getSrcPid(), pkt->getDestPid(), srcAddr, destAddr, length);
+
+	Hermes::MemAddr srcMemAddr;
+	if ( core.findMemAddr( srcAddr, length, srcMemAddr ) ) {
+		m_sendQ.push_back( new RdmaWriteEntry( m_streamIdCnt++, pkt->getDestPid(), pkt->getSrcNid(), pkt->getSrcPid(),
+								srcMemAddr, destAddr, length, true ) );
+	} else {
+		m_dbg.output("NIC %d RdmaRead dump pkt from nid=%d pid=%d\n", getNodeNum(), pkt->getSrcNid(), pkt->getSrcPid() );
+	}
+	delete pkt;
 }

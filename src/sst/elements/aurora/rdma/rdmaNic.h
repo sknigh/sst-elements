@@ -36,6 +36,8 @@ namespace RDMA {
 
 class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
+	static const char* protoNames[];
+
   public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         RdmaNicSubComponent,
@@ -60,17 +62,10 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	void setNumCores(int);
 
   private:
-	static const char* protoNames[];
+
 	enum PktProtocol { Message, RdmaRead, RdmaWrite };
-	void handleSelfEvent( Event* );
-	int processRdmaSendQ( Cycle_t cycle );
-	int processDMAslots();
-	bool processSendQ( Cycle_t cycle );
-	void processPkt( NetworkPkt* );
-	void processRDMA( NetworkPkt* );
-	void processRdmaRead( NetworkPkt* );
-	void processRdmaWrite( NetworkPkt* );
-	void processMsg( NetworkPkt* );
+	typedef std::function<void( )> Callback;
+
 	void createRQ( int coreNum, Event* event );
 	void postRecv( int coreNum, Event* event );
 	void send( int coreNum, Event* event );
@@ -79,17 +74,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	void read( int coreNum, Event* event );
 	void write( int coreNum, Event* event );
 
-	bool processRecv() {
-		Interfaces::SimpleNetwork::Request* req = getNetworkLink().recv( m_vc );
-		if ( req ) {
-			processPkt( static_cast<NetworkPkt*>( req->takePayload() ) );
-			delete req;
-			return false;
-		} 
-		return true;
-	}
-
-	typedef std::function<void( )> Callback;
 
 	class SendEntry {
 	  public:
@@ -115,7 +99,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		void incCompletedDMAs() { ++m_completedDMAs; }
 		void decRemainingBytes( int num ) { m_currentOffset += num; }
 		bool done() { return m_totalDMAs == m_completedDMAs; }
-		int srcPid() { return m_srcCore; };
+		int getSrcCore() { return m_srcCore; };
 		size_t length() { return m_length; }
 		int remainingBytes() { return m_length - m_currentOffset; }
 		int streamId() { return m_streamId; }
@@ -125,7 +109,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			return  ( 0 == m_currentOffset );
 		}
 
-		virtual int destNode() = 0;
+		virtual int getDestNode() = 0;
 		virtual int destPid() = 0;
 		virtual unsigned char pktProtocol() = 0;
 		virtual void* getBacking() = 0; 
@@ -146,7 +130,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		MsgSendEntry( int id, int srcCore, SendCmd* cmd ) : SendEntry( id, srcCore, cmd->length ), cmd( cmd ) { }	
 		~MsgSendEntry() { delete cmd; }
 
-		int destNode() { return cmd->proc.node; }
+		int getDestNode() { return cmd->proc.node; }
 		int destPid() { return cmd->proc.pid; }
 		unsigned char pktProtocol() { return Message; }
 		Hermes::RDMA::RqId rqId() { return cmd->rqId; }
@@ -163,6 +147,21 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		SendCmd* cmd;
 	};
 
+	class RdmaReadEntry : public SendEntry {
+      public:
+		RdmaReadEntry( int srcCore, ReadCmd* cmd ) : SendEntry( -1, srcCore, cmd->length ), cmd( cmd ) {}	
+		~RdmaReadEntry() { delete cmd; }
+		int getDestNode() { return cmd->proc.node; }
+		int destPid() { return cmd->proc.pid; }
+		unsigned char pktProtocol() { return RdmaRead; }
+		Hermes::RDMA::RqId rqId() { return -1; }
+		void* getBacking() { return NULL; }
+		Hermes::RDMA::Addr getDestAddr() { return cmd->destAddr.getSimVAddr(); }
+		Hermes::RDMA::Addr getSrcAddr() { return cmd->srcAddr; }
+	  private:
+		ReadCmd* cmd;
+	};
+
 	class RdmaWriteEntry : public SendEntry {
 	  public:
 		RdmaWriteEntry( int id, int core, int destNid, int destPid,
@@ -177,7 +176,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		}
 		bool isReadResp() { return m_isReadResp; }
 
-		int destNode() { return m_destNid; }
+		int getDestNode() { return m_destNid; }
 		int destPid() { return m_destPid; }
 
 		Hermes::RDMA::Addr destAddr() { return m_destAddr; }
@@ -209,6 +208,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		RdmaRecvEntry( Hermes::MemAddr& addr, size_t length, bool isReadResp = false ) :
 			m_addr(addr), m_length(length), m_bytesRecvd(0), m_isReadResp(isReadResp) {} 
 
+
 		bool recv( void* ptr, uint32_t offset, size_t length ) {
 			uint8_t* backing = (uint8_t*) m_addr.getBacking();
 			if ( backing ) { 
@@ -226,48 +226,31 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		size_t m_bytesRecvd;
 		bool m_isReadResp;
 	};
+	
+	class RecvBuf;
 
-	class SelfEvent : public Event {
-	  public:
-		SelfEvent( Callback* callback ) : Event(), callback( callback ) {}
-#if 0
-		SelfEvent( int slot, SendEntry* entry ) : slot(slot), entry(entry) {}
-		int slot;
-		SendEntry* entry;
-#endif
+    class SelfEvent : public Event {
+      public:
+        enum Type { RxLatency, RxDmaDone, TxLatency, TxDmaDone } type;
 
-		Callback* callback;
-		NotSerializable(SelfEvent)
-	};
+        SelfEvent( NetworkPkt* pkt, SendEntry* entry, size_t length, bool lastPkt ) :
+			Event(), type(TxLatency), pkt(pkt), sendEntry(entry), length(length ), lastPkt(lastPkt) {}
 
-	class DMAslot {
-		enum { Idle, Wait, Ready } state;
-	  public:
-		DMAslot() : state(Idle) {}	
+        SelfEvent( NetworkPkt* pkt, SendEntry* entry, bool lastPkt ) :
+			Event(), type(TxDmaDone), pkt(pkt), sendEntry(entry), lastPkt(lastPkt) {}
 
-		void init( NetworkPkt* pkt, int destNode ) {
-			m_pkt = pkt;
-			m_destNode = destNode;	
-			state = Wait;
-		}
+        SelfEvent( NetworkPkt* pkt ) : Event(), type(RxLatency), pkt(pkt) {}
+		SelfEvent( NetworkPkt* pkt, size_t length ) : Event(), type(RxDmaDone), pkt(pkt), length(length) {} 
+		SelfEvent( NetworkPkt* pkt, RecvBuf* buffer, size_t length ) : Event(), type(RxDmaDone), pkt(pkt), buffer(buffer), length(length) {} 
+			
+        NetworkPkt*	pkt;
+		RecvBuf*	buffer;
+        SendEntry*	sendEntry;
+        size_t		length;
+        bool		lastPkt;
 
-		NetworkPkt* pkt() { return m_pkt; }
-
-		bool ready() { return state == Ready; }
-		int getDestNode() { return m_destNode; }
-		void setIdle() { state = Idle; } 
-		void setReady() { state = Ready; }
-
-	  private:
-		NetworkPkt* 	m_pkt;
-		int 			m_destNode;
-	};
-
-
-	std::vector< DMAslot > m_dmaSlots;
-	int m_firstActiveDMAslot;
-	int m_firstAvailDMAslot;
-	int m_activeDMAslots;
+        NotSerializable(SelfEvent)
+    };
 
 	class RecvBuf {
 	  public:
@@ -275,6 +258,8 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			//printf("RecvBuf::%s() this=%p\n",__func__,this);
 		}
 		~RecvBuf() { delete cmd; }
+
+		bool isLastPkt( size_t length ) { return m_offset + length == m_recvLength; }  
 
 		bool recv( void* ptr, size_t length ) {
 			unsigned char* buf = (unsigned char* )cmd->addr.getBacking();
@@ -438,6 +423,32 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		rdmaRecvMap_t m_rdmaRecvMap;
 	};
 
+	void handleSelfEvent( Event* );
+	void handleSelfEvent( SelfEvent* );
+    void processSendPktStart( NetworkPkt*, SendEntry*, size_t length, bool lastPkt );
+    void processSendPktFini( NetworkPkt*, SendEntry*, bool lastPkt );
+
+	bool processRecv();
+	int processRdmaSendQ( Cycle_t cycle );
+	bool processSend( Cycle_t cycle );
+	bool processSendQ( Cycle_t cycle );
+	void processPkt( NetworkPkt* );
+
+	void processRecvPktStart( SelfEvent* );
+	void processRecvPktFini( SelfEvent* );
+
+	void processRdmaReadPkt( NetworkPkt* );
+
+	SelfEvent* processRdmaWritePktStart( NetworkPkt* );
+	void processRdmaWritePktFini( NetworkPkt* );
+
+	SelfEvent* processMsgPktStart( NetworkPkt* );
+	void processMsgPktFini( RecvBuf* buffer, NetworkPkt* pkt, size_t length );
+
+    Interfaces::SimpleNetwork::Request* makeNetReq( NetworkPkt* pkt, int destNode );
+    bool sendNetReq( Interfaces::SimpleNetwork::Request* );
+    void netReqSent( );
+
 	std::vector<Core>   m_coreTbl;
 
 	typedef void (RdmaNicSubComponent::*MemFuncPtr)( int, Event* );
@@ -447,12 +458,20 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	static const char *m_cmdName[];
 
 	int m_vc;
-	std::queue< SendEntry* > m_sendQ;
+	std::deque< SendEntry* > m_sendQ;
 
-	std::queue< std::pair<NetworkPkt*,int> > m_rdmaSendQ;
 	int m_streamIdCnt;
-	int m_availRecvDmaEngines;
 	size_t m_clockCnt;
+
+    bool m_sendStartBusy;
+    bool m_recvStartBusy;
+	bool m_recvDmaPending;
+    bool m_sendDmaPending;
+    SelfEvent* m_sendDmaBlockedEvent;
+	SelfEvent* m_recvDmaBlockedEvent;
+
+	std::queue<SelfEvent*> m_selfEventQ;
+	Interfaces::SimpleNetwork::Request* m_pendingNetReq;
 };
 
 }
