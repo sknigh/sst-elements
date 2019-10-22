@@ -52,20 +52,11 @@ Nic::Nic(ComponentId_t id, Params &params) :
         pktSize /= 8;
 	}
 
-    UnitAlgebra input_buf_size = params.find<SST::UnitAlgebra>("input_buf_size" );
-    UnitAlgebra output_buf_size = params.find<SST::UnitAlgebra>("output_buf_size" );
-    UnitAlgebra link_bw = params.find<SST::UnitAlgebra>("link_bw" );
-
-    m_dbg.verbose(CALL_INFO,1,1,"id=%d input_buf_size=%s output_buf_size=%s link_bw=%s packetSize=%d\n", m_nodeId,
-            input_buf_size.toString().c_str(), output_buf_size.toString().c_str(), link_bw.toString().c_str(), pktSize);
-
-    m_linkControl = loadUserSubComponent<Interfaces::SimpleNetwork>( "rtrLink", ComponentInfo::SHARE_NONE, 0 );
+    m_linkControl = loadUserSubComponent<Interfaces::SimpleNetwork>( "rtrLink", ComponentInfo::SHARE_NONE, 2 );
     assert( m_linkControl );
 
 	m_recvNotifyFunctor = new SimpleNetwork::Handler<Nic>(this,&Nic::recvNotify );
 	m_sendNotifyFunctor = new SimpleNetwork::Handler<Nic>(this,&Nic::sendNotify );
-
-    m_linkControl->initialize(params.find<std::string>("rtrPortName","rtr"), link_bw, 2, input_buf_size, output_buf_size );
 
 	Params p = params.find_prefix_params("nicSubComponent.");
     m_nicSC = loadAnonymousSubComponent<NicSubComponent>( params.find<std::string>("nicSubComponent"), "",0, ComponentInfo::SHARE_NONE, p );
