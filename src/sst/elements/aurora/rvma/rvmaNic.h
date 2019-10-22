@@ -116,7 +116,6 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		bool lastPkt;
 
 		NotSerializable(SelfEvent)
-
 	};
 
 	class Window {

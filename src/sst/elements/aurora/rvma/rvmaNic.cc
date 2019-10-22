@@ -24,7 +24,8 @@ const char* RvmaNicSubComponent::m_cmdName[] = {
     FOREACH_CMD(GENERATE_CMD_STRING)
 };
 
-RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params ), m_vc(0),
+RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params ),
+	m_vc(0),
 	m_recvStartBusy(false), m_recvDmaPending(false), m_recvDmaBlockedEvent(NULL),
 	m_sendStartBusy(false), m_sendDmaPending(false), m_sendDmaBlockedEvent(NULL),
 	m_pendingNetReq(NULL)
@@ -470,7 +471,6 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 	} else {
 		m_dbg.debug(CALL_INFO,2,1,"found window %d for virtAddr 0x%" PRIx64 "\n",window,rvmaAddr);
 	}
-
 
 	SelfEvent* event = new SelfEvent( destPid, window, pkt, length, rvmaOffset );
 
