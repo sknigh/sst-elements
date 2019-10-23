@@ -255,7 +255,7 @@ void RvmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 	Hermes::ProcAddr procAddr = getProcAddr(entry);
 
 	hdr->procAddr.node =  os().getNodeNum(); 
-	hdr->procAddr.pid =  procAddr.pid;
+	hdr->procAddr.pid =  os().getPid();
 
 	int delay = 0;
 
