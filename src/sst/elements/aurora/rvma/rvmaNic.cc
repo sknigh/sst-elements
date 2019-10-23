@@ -78,7 +78,7 @@ void RvmaNicSubComponent::handleEvent( int core, Event* event ) {
 
 	NicCmd* cmd = static_cast<NicCmd*>(event); 
 
-    m_dbg.debug(CALL_INFO,3,2,"%s\n",m_cmdName[cmd->type]);
+    m_dbg.debug(CALL_INFO,3,2,"core=%d %s\n",core, m_cmdName[cmd->type]);
 	(this->*m_cmdFuncTbl[cmd->type])( core, event );
 }
 
@@ -94,7 +94,7 @@ void RvmaNicSubComponent::initWindow( int coreNum, Event* event )
 			break;
 		}
 	}
-    m_dbg.debug(CALL_INFO,2,2,"windowSlot=%d winAddr=%" PRIx64 " threshold=%zu type=%d\n",window, cmd->addr,cmd->threshold,cmd->type);
+    m_dbg.debug(CALL_INFO,2,2,"core=%d windowSlot=%d winAddr=%" PRIx64 " threshold=%zu type=%d\n",window, coreNum, cmd->addr,cmd->threshold,cmd->type);
 	sendResp( coreNum, new InitWindowResp(window) );	
 	delete event;
 }
@@ -121,7 +121,7 @@ void RvmaNicSubComponent::incEpoch( int coreNum, Event* event )
 	Core& core = m_coreTbl[coreNum];
 	int retval = -2;
 	WinIncEpochCmd* cmd = static_cast<WinIncEpochCmd*>(event);
-    m_dbg.debug(CALL_INFO,2,1,"window=%d\n",cmd->window);
+    m_dbg.debug(CALL_INFO,2,1,"core=%d window=%d\n",coreNum, cmd->window);
 	if (  cmd->window < core.m_windowTbl.size() ) {
 		retval = core.m_windowTbl[cmd->window].incEpoch( );
 	}
@@ -133,7 +133,7 @@ void RvmaNicSubComponent::getEpoch( int coreNum, Event* event )
 	Core& core = m_coreTbl[coreNum];
 	int retval = -2;
 	WinGetEpochCmd* cmd = static_cast<WinGetEpochCmd*>(event);
-    m_dbg.debug(CALL_INFO,2,1,"window=%d\n",cmd->window);
+    m_dbg.debug(CALL_INFO,2,1,"core=%d window=%d\n",coreNum, cmd->window);
 	if (  cmd->window < core.m_windowTbl.size() ) {
 		int epoch;
 		retval = core.m_windowTbl[cmd->window].getEpoch( &epoch );
@@ -146,7 +146,7 @@ void RvmaNicSubComponent::getBufPtrs( int coreNum, Event* event )
 	Core& core = m_coreTbl[coreNum];
 	int retval = -2;
 	WinGetBufPtrsCmd* cmd = static_cast<WinGetBufPtrsCmd*>(event);
-    m_dbg.debug(CALL_INFO,2,1,"window=%d\n",cmd->window);
+    m_dbg.debug(CALL_INFO,2,1,"core=%d window=%d\n",coreNum, cmd->window);
 	WinGetBufPtrsResp* resp = new WinGetBufPtrsResp();
 	if (  cmd->window < core.m_windowTbl.size() ) {
 		core.m_windowTbl[cmd->window].getBufPtrs( resp->completions, cmd->max );
@@ -167,8 +167,8 @@ void RvmaNicSubComponent::postBuffer( int coreNum, Event* event )
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed window %d out of range\n", getNodeNum(), cmd->window );
 	}
 
-    m_dbg.debug(CALL_INFO,2,1,"windowSlot=%d winAddr=0x%" PRIx64 " buffAddr=0x%" PRIx64 " size=%zu completion=%p numAvailBuffers=%d\n",
-				cmd->window, core.m_windowTbl[cmd->window].getWinAddr(), cmd->addr.getSimVAddr(),
+    m_dbg.debug(CALL_INFO,2,1,"core=%d windowSlot=%d winAddr=0x%" PRIx64 " buffAddr=0x%" PRIx64 " size=%zu completion=%p numAvailBuffers=%d\n",
+				coreNum, cmd->window, core.m_windowTbl[cmd->window].getWinAddr(), cmd->addr.getSimVAddr(),
 				cmd->size, cmd->completion, core.m_windowTbl[cmd->window].numAvailBuffers());
 
 	if ( ret != 0 ) {
@@ -194,8 +194,8 @@ void RvmaNicSubComponent::postOneTimeBuffer( int coreNum, Event* event )
 		}
 	}
 
-    m_dbg.debug(CALL_INFO,2,2,"windowSlot=%d winAddr=0x%" PRIx64 " threshold=%zu type=%d bufAddr=0x%" PRIx64 " completion=%p\n",
-						window, cmd->winAddr,cmd->threshold,cmd->type,cmd->bufAddr.getSimVAddr(), cmd->completion );
+    m_dbg.debug(CALL_INFO,2,2,"core=%d windowSlot=%d winAddr=0x%" PRIx64 " threshold=%zu type=%d bufAddr=0x%" PRIx64 " completion=%p\n",
+						coreNum, window, cmd->winAddr,cmd->threshold,cmd->type,cmd->bufAddr.getSimVAddr(), cmd->completion );
 
 	if ( -1 == window ) {
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed couldn't allocate window\n", getNodeNum());
@@ -216,8 +216,8 @@ void RvmaNicSubComponent::put( int coreNum, Event* event )
 {
 	PutCmd* cmd = static_cast<PutCmd*>(event);
 
-    m_dbg.debug(CALL_INFO,2,1,"nid=%d pid=%d size=%zu virtAddr=0x%" PRIx64 " offset=%zu srcAddr=0x%" PRIx64 "\n",
-			cmd->proc.node,cmd->proc.pid,cmd->size,cmd->virtAddr,cmd->offset, cmd->srcAddr.getSimVAddr());
+    m_dbg.debug(CALL_INFO,2,1,"core=%d nid=%d pid=%d size=%zu virtAddr=0x%" PRIx64 " offset=%zu srcAddr=0x%" PRIx64 "\n",
+			coreNum, cmd->proc.node, cmd->proc.pid, cmd->size, cmd->virtAddr, cmd->offset, cmd->srcAddr.getSimVAddr());
 
 	m_sendQ.push( new SendEntry( coreNum, cmd ) );
 
@@ -229,7 +229,7 @@ void RvmaNicSubComponent::put( int coreNum, Event* event )
 void RvmaNicSubComponent::mwait( int coreNum, Event* event )
 {
 	MwaitCmd* cmd = static_cast<MwaitCmd*>(event);
-    m_dbg.debug(CALL_INFO,2,1,"completion %p\n",cmd->completion);
+    m_dbg.debug(CALL_INFO,2,1,"core=%d completion %p\n",coreNum, cmd->completion);
 	Core& core = m_coreTbl[coreNum];
 	assert( ! core.m_mwaitCmd );
 
@@ -325,7 +325,7 @@ bool RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
 	pkt->payloadPush( entry.dataAddr(), payloadSize );
 
-	m_dbg.debug(CALL_INFO,2,1,"destNid=%d destPid=%d payloadSize %d\n",entry.getDestNode(), entry.destPid(),  payloadSize);
+	m_dbg.debug(CALL_INFO,2,1,"core=%d destNid=%d destPid=%d payloadSize %d\n",entry.getSrcCore(), entry.getDestNode(), entry.destPid(),  payloadSize);
 	entry.decRemainingBytes( payloadSize );
 
 	pkt->setSrcNid( getNodeNum() );
@@ -457,7 +457,7 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 	int destPid = pkt->getDestPid();
 	size_t length = pkt->popBytesLeft();
 
-	m_dbg.debug(CALL_INFO,2,1,"srcNid=%d srcPid=%d destPid=%d rvmaAddr=0x%" PRIx64 " offset=%" PRIu64 " length=%zu\n",
+	m_dbg.debug(CALL_INFO,2,1,"srcNid=%d srcPid=%d core=%d rvmaAddr=0x%" PRIx64 " offset=%" PRIu64 " length=%zu\n",
 			pkt->getSrcNid(), pkt->getSrcPid(),
 			pkt->getDestPid(), rvmaAddr, rvmaOffset, length );
 
@@ -488,7 +488,7 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 void RvmaNicSubComponent::processRecvPktFini( int destPid, int window, NetworkPkt* pkt, size_t length, uint64_t rvmaOffset ) 
 {
 	Core& core = m_coreTbl[destPid];
-	m_dbg.debug(CALL_INFO,2,1,"DMA finished destPid=%d window=%d length=%zu offset=%" PRIu64 "\n",destPid, window, length, rvmaOffset);
+	m_dbg.debug(CALL_INFO,2,1,"DMA finished core=%d window=%d length=%zu offset=%" PRIu64 "\n",destPid, window, length, rvmaOffset);
 
 	Buffer* buffer = core.m_windowTbl[window].recv( rvmaOffset, pkt->payload(), length );
 	if ( NULL == buffer ) {
