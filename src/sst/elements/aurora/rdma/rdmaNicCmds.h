@@ -84,10 +84,11 @@ class SendCmd : public NicCmd {
 
 class CheckRqCmd : public NicCmd {
   public:
-	CheckRqCmd( Hermes::RDMA::RqId rqId, bool blocking ) :
-		NicCmd( CheckRQ ), rqId(rqId), blocking(blocking) {}
+	CheckRqCmd( Hermes::RDMA::RqId rqId, Hermes::RDMA::Status* status, bool blocking ) :
+		NicCmd( CheckRQ ), rqId(rqId), status(status), blocking(blocking) {}
 
 	Hermes::RDMA::RqId rqId;
+	Hermes::RDMA::Status* status;
 	bool blocking;
     NotSerializable(SST::Aurora::RDMA::CheckRqCmd);
 };
