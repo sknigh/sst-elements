@@ -290,6 +290,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		Hermes::MemAddr addr() { return cmd->addr; }
 		Hermes::ProcAddr& proc() { return m_proc; }
 		Hermes::RDMA::RqId rqId() { return m_rqId; }
+		Hermes::RDMA::Status* status() { return cmd->status; }
 
 	  private:
 		PostRecvCmd* cmd; 
@@ -325,17 +326,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			return 0;
 		}		
 
-		bool checkRqStatus( Hermes::RDMA::RqId rqId, Hermes::RDMA::Status& status ) {
-			recvBufMap_t::iterator iter = m_readyBufs.find(rqId);
-			if ( iter == m_readyBufs.end() ) {
-				return false;
-			}
-			status.procAddr = iter->second.front()->proc();
-			status.length = iter->second.front()->length();
-			status.addr = iter->second.front()->addr(); 
-			return true;
-		}
-
 		bool validRqId( Hermes::RDMA::RqId rqId ) {
 			return m_rqs.find(rqId) != m_rqs.end();
 		}	
@@ -368,16 +358,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			}
 
 			return buf;
-		}
-
-		void popReadyBuf( Hermes::RDMA::RqId rqId ) {
-			m_readyBufs[rqId].pop_front( );
-			if ( m_readyBufs[rqId].empty() ) {
-				m_readyBufs.erase(rqId);
-			}
-		}
-		void pushReadyBufs( RecvBuf* buf ) {
-			m_readyBufs[buf->rqId()].push_back( buf );
 		}
 
 		uint64_t genKey( int srcNid, int srcPid ) {
@@ -417,7 +397,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 		streamMap_t m_activeStreams;
 		recvBufMap_t		m_rqs;
-		recvBufMap_t		m_readyBufs;
 
 		CheckRqCmd* m_checkRqCmd;
 		rdmaRecvMap_t m_rdmaRecvMap;

@@ -200,19 +200,17 @@ void RdmaNicSubComponent::checkRQ( int coreNum, Event* event ) {
 
     m_dbg.debug(CALL_INFO,1,2,"rqId=%d blocking=%d\n",(int)cmd->rqId,cmd->blocking);
 
-	Hermes::RDMA::Status status;
 	if ( core.validRqId( cmd->rqId ) ) {
 		
 		assert( core.m_checkRqCmd == NULL );
-		bool retval = core.checkRqStatus( cmd->rqId, status );
 
+		bool retval = cmd->status->length != -1;
 		if ( ! cmd->blocking || retval ) {
     		m_dbg.debug(CALL_INFO,1,2,"checkRqStatus %s\n",retval? "have message" : "no message");
 			if ( retval ) {
-				core.popReadyBuf( cmd->rqId );
-   				sendResp( coreNum, new CheckRqResp( status, 1) );
+				sendResp( coreNum, new CheckRqResp( 1 ) );
 			} else {
-   				sendResp( coreNum, new CheckRqResp( status, 0) );
+				sendResp( coreNum, new CheckRqResp( 0 ) );
 			}
 			delete cmd;
 		} else {
@@ -221,7 +219,7 @@ void RdmaNicSubComponent::checkRQ( int coreNum, Event* event ) {
 		}
 
 	} else {
-   		sendResp( coreNum, new CheckRqResp( status, -1) );
+		sendResp( coreNum, new CheckRqResp( -1 ) );
 		delete cmd;
 	}
 }
@@ -566,18 +564,15 @@ void RdmaNicSubComponent::processMsgPktFini( RecvBuf* buffer, NetworkPkt* pkt, s
 		m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 2, RECV_DEBUG_MASK, "DMA done\n");
 
 		if ( buffer->isComplete() ) {
-			core.pushReadyBufs( buffer );
+
 			m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "buffer is complete\n");
-			if ( core.m_checkRqCmd ) {
-				Hermes::RDMA::Status status;
-				if ( core.checkRqStatus( buffer->rqId(), status ) ) {
-					m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "wake up checkRQ\n");
-   					sendResp( destPid, new CheckRqResp( status, 1) );
-					core.popReadyBuf( buffer->rqId() );
-					delete core.m_checkRqCmd;
-					core.m_checkRqCmd = NULL;
-					delete buffer;
-				}
+			if ( core.m_checkRqCmd && core.m_checkRqCmd->status == buffer->status() ) {
+
+				m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "wake up checkRQ\n");
+				sendResp( destPid, new CheckRqResp( 1 ) );
+				delete core.m_checkRqCmd;
+				core.m_checkRqCmd = NULL;
+				delete buffer;
 			}
 		}	
 	} else {
