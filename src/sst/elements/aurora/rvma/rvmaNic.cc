@@ -256,7 +256,7 @@ bool RvmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 		m_selfEventQ.pop();
 	}
 
-	bool stop = ( ! processRecv() && ! processSend( cycle ) );
+	bool stop = processRecv() && processSend( cycle );
 
 	if ( stop ) {
 		stopClocking(cycle);
@@ -266,7 +266,7 @@ bool RvmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 }
 
 bool RvmaNicSubComponent::processSend( Cycle_t cycle ) {
-	return ! processSendQ(cycle);
+	return processSendQ(cycle);
 }
 
 void RvmaNicSubComponent::handleSelfEvent( Event* e ) {
@@ -306,7 +306,7 @@ void RvmaNicSubComponent::handleSelfEvent( SelfEvent* event ) {
 bool RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
 	if ( m_sendQ.empty() || m_sendStartBusy || m_pendingNetReq ) {
-		return false;
+		return true;
 	}
 
 	SendEntry& entry = *m_sendQ.front();
@@ -339,8 +339,7 @@ bool RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 		m_dbg.debug(CALL_INFO,2,1,"done %p %p\n",pkt, &entry);
 		m_sendQ.pop();
 	}
-
-	return false;
+	return true;
 }
 
 void RvmaNicSubComponent::processSendPktStart( NetworkPkt* pkt, SendEntry* entry, size_t length, bool lastPkt ) {
@@ -433,7 +432,7 @@ SimpleNetwork::Request* RvmaNicSubComponent::makeNetReq( NetworkPkt* pkt, int de
 
 bool RvmaNicSubComponent::processRecv() {
 	if ( m_recvStartBusy ) {
-		return false;
+		return true;
 	}
 
 	Interfaces::SimpleNetwork::Request* req = getNetworkLink().recv( m_vc );
@@ -444,7 +443,7 @@ bool RvmaNicSubComponent::processRecv() {
 		m_recvStartBusy = true;
 		delete req;
 	}
-	return false;
+	return true;
 }
 
 void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
