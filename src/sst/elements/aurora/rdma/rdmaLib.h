@@ -77,9 +77,10 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
 	}
 
     void checkRQ( Hermes::RDMA::RqId rqId, Hermes::RDMA::Status* status, bool blocking, Hermes::Callback* callback ) {
-		dbg().debug(CALL_INFO,1,2,"\n");
 
 		*status = *m_rqMap[rqId].front();
+
+		dbg().debug(CALL_INFO,1,2,"rdId=%d %s %s\n",rqId, status->length == -1 ? "empty":"ready",blocking?"blocking":"non-blocking");
 
 		if ( -1 != m_rqMap[rqId].front()->length ) {
 			delete m_rqMap[rqId].front();
@@ -87,10 +88,10 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
 		}
 
 		if ( blocking && status->length == -1  ) {
-			setFiniCallback( new Callback( std::bind( &RdmaLib::checkRqFini, this, status, std::placeholders::_1 ) ) );	
-			doEnter( new CheckRqCmd( rqId, blocking ), callback );
+			setFiniCallback( new Callback( std::bind( &RdmaLib::checkRqFini, this, status, rqId, std::placeholders::_1 ) ) );
+			doEnter( new CheckRqCmd( rqId, m_rqMap[rqId].front(), blocking ), callback );
 		} else {
-			schedCallback( calcEnterLatency(NicCmd::CheckRQ) + calcReturnLatency(NicCmd::CheckRQ), callback, 0 );
+			schedCallback( calcEnterLatency(NicCmd::CheckRQ) + calcReturnLatency(NicCmd::CheckRQ), callback, status->length == -1 ? 0 : 1 );
 		}
 	}
 
@@ -124,10 +125,14 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
         return resp->retval;
     }
 
-	int checkRqFini( Hermes::RDMA::Status* status, Event* event ) {
+	int checkRqFini( Hermes::RDMA::Status* status, Hermes::RDMA::RqId rqId, Event* event ) {
 		CheckRqResp* resp = static_cast<CheckRqResp*>(event);
 		dbg().debug(CALL_INFO,1,2,"retval=%d\n", resp->retval);
-		*status = resp->status;
+		if ( 1 == resp->retval ) {
+			*status = *m_rqMap[rqId].front();
+			delete m_rqMap[rqId].front();
+			m_rqMap[rqId].pop();
+		}
         return resp->retval;
     }
 
