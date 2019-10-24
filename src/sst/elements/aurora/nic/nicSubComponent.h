@@ -88,15 +88,14 @@ class NicSubComponent : public SubComponent {
 
     void stopClocking( Cycle_t cycle );
     void startClocking();
-    void _startClocking() {
+    Cycle_t _startClocking() {
 
         if ( m_clocking != false ) {
             m_dbg.debug(CALL_INFO,1,2,"\n");
             assert(0);
         }
         m_clocking = true;
-        Cycle_t cycle = reregisterClock( m_timeConverter, m_clockHandler );
-        m_dbg.debug(CALL_INFO,1,2,"start clocking cycle %" PRIu64 "\n",cycle);
+        return reregisterClock( m_timeConverter, m_clockHandler );
     }
 
 	TimeConverter* m_timeConverter;	

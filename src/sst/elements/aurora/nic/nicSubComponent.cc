@@ -57,9 +57,8 @@ void NicSubComponent::stopClocking( Cycle_t cycle ) {
 }
 
 void NicSubComponent::startClocking() {
-
-	m_dbg.debug(CALL_INFO,1,2,"\n");
 	m_nic->disableNetNotifier();
-	_startClocking();
+	Cycle_t cycle = _startClocking();
 	m_totalIdleCycles += getNextClockCycle(m_timeConverter) - m_stopCycle;
+	m_dbg.debug(CALL_INFO,1,2,"start clocking cycle %" PRIu64 "\n",cycle);
 }
