@@ -234,21 +234,21 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 
 void RdmaMpiPt2PtLib::waitForLongAck( Hermes::Callback* callback, SendEntry* entry, int retval )
 {
-	m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,2,"\n");
+	 m_dbg.debug(CALL_INFO,1,2,"\n");
 
 	Hermes::Callback* cb = new Hermes::Callback;
 	*cb = [=](int retval ){
 
-		m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,2,"back from checkRQ\n");
+		m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"back from checkRQ\n");
    		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int retval ){ 
-			m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,2,"back from checkMsgAvail\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"back from checkMsgAvail\n");
 			if ( entry->isDone() ) {
-    			m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,2,"long send done\n");
+				m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"long send done\n");
 				(*callback)(0);
 				delete callback;				
 			} else {
-    			m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,2,"call waitForLongAck again\n");
+				m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"call waitForLongAck again\n");
 				waitForLongAck( callback, entry, 0 );
 			}
 		};
@@ -358,7 +358,8 @@ Hermes::RDMA::Status* RdmaMpiPt2PtLib::checkUnexpected( RecvEntryBase* entry ) {
 }
 
 void RdmaMpiPt2PtLib::postRecvBuffer( Hermes::Callback* callback, int count, int retval ) {
-    m_dbg.debug(CALL_INFO,1,2,"count=%d retval=%d\n",count,retval);
+
+    m_dbg.debug(CALL_INFO,1,2,"count=%d retval=%d rdId=%d\n",count,retval, m_rqId);
 
     --count;
     Hermes::Callback* cb = new Hermes::Callback;
@@ -373,7 +374,7 @@ void RdmaMpiPt2PtLib::postRecvBuffer( Hermes::Callback* callback, int count, int
 }
 
 void RdmaMpiPt2PtLib::repostRecvBuffer( Hermes::MemAddr addr, Hermes::Callback* callback ) {
-    m_dbg.debug(CALL_INFO,1,2,"\n");
+    m_dbg.debug(CALL_INFO,1,2,"rqId=%d\n",m_rqId);
 
    	size_t length = m_shortMsgLength + sizeof(MsgHdr);
    	rdma().postRecv( m_rqId, addr, length, NULL, callback );
