@@ -440,7 +440,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	std::deque< SendEntry* > m_sendQ;
 
 	int m_streamIdCnt;
-	size_t m_clockCnt;
 
     bool m_sendStartBusy;
     bool m_recvStartBusy;

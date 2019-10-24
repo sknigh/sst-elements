@@ -31,7 +31,7 @@ const char* RdmaNicSubComponent::m_cmdName[] = {
 const char* RdmaNicSubComponent::protoNames[] = {"Message","RdmaRead","RdmaWrite"};
 
 RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params),
-   	m_vc(0), m_streamIdCnt(0), m_clockCnt(0),
+   	m_vc(0), m_streamIdCnt(0),
 	m_recvStartBusy(false), m_recvDmaPending(false), m_recvDmaBlockedEvent(NULL),
     m_sendStartBusy(false), m_sendDmaPending(false), m_sendDmaBlockedEvent(NULL),
     m_pendingNetReq(NULL)
@@ -85,9 +85,7 @@ void RdmaNicSubComponent::handleEvent( int core, Event* event ) {
 
 bool RdmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 
-	++m_clockCnt;
-
-   m_dbg.debug(CALL_INFO,3,1,"\n");
+	m_dbg.debug(CALL_INFO,3,1,"\n");
 
     if ( m_pendingNetReq && sendNetReq( m_pendingNetReq ) ) {
         m_dbg.debug(CALL_INFO,2,1,"sent pendingNetReq\n");
@@ -101,7 +99,6 @@ bool RdmaNicSubComponent::clockHandler( Cycle_t cycle ) {
     }
 
     bool stop = processRecv() && processSend( cycle );
-
 
     if ( stop ) {
         stopClocking(cycle);
@@ -117,9 +114,7 @@ bool RdmaNicSubComponent::processSend( Cycle_t cycle ) {
 void RdmaNicSubComponent::handleSelfEvent( Event* e ) {
     SelfEvent* event = static_cast<SelfEvent*>(e);
 
-    if ( ! m_clocking ) { 
-		startClocking(); 
-	}
+    if ( ! m_clocking ) { startClocking(); }
 
     m_selfEventQ.push( event );
 }
