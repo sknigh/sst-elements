@@ -25,6 +25,9 @@
 namespace SST {
 namespace Aurora {
 
+#define NIC_DBG_MASK_MSG_LVL1 (1<<1)
+#define NIC_DBG_MASK_MSG_LVL2 (1<<2)
+
 class Nic;
 class NicSubComponent : public SubComponent {
 
@@ -68,20 +71,20 @@ class NicSubComponent : public SubComponent {
 	static int getPktSize() { return m_pktSize; }
 
     void networkReady( int vc ) {
-        m_dbg.debug(CALL_INFO,1,2,"\n");
+        m_dbg.debug(CALL_INFO,2,2,"\n");
         _startClocking();
     }
 
   protected:
 
 	SimTime_t calcToHostBW_Latency( size_t length ) {
-        m_dbg.debug(CALL_INFO,1,2,"length=%zu BW=%f latency=%" PRIu64 "\n",
+        m_dbg.debug(CALL_INFO,2,2,"length=%zu BW=%f latency=%" PRIu64 "\n",
 					length, m_toHostBandwidth, (SimTime_t) ( ( (double) length / m_toHostBandwidth ) * 1000000000.0 ) );
 		return ( ( (double) length / m_toHostBandwidth ) * 1000000000.0 ); 
     }
 
 	SimTime_t calcFromHostBW_Latency( size_t length ) {
-		m_dbg.debug(CALL_INFO,1,2,"length=%zu BW=%f latency=%" PRIu64 "\n",
+		m_dbg.debug(CALL_INFO,2,2,"length=%zu BW=%f latency=%" PRIu64 "\n",
 					length, m_fromHostBandwidth, (SimTime_t) ( ( (double) length / m_fromHostBandwidth ) * 1000000000.0 ) );
 		return ( ( (double) length / m_fromHostBandwidth ) * 1000000000.0 ); 
     }
@@ -91,7 +94,6 @@ class NicSubComponent : public SubComponent {
     Cycle_t _startClocking() {
 
         if ( m_clocking != false ) {
-            m_dbg.debug(CALL_INFO,1,2,"\n");
             assert(0);
         }
         m_clocking = true;
@@ -110,6 +112,7 @@ class NicSubComponent : public SubComponent {
 	double	m_toHostBandwidth;
 	double	m_fromHostBandwidth;
 
+	int m_vc;
   private:
     std::vector<Link*>          		m_toCoreLinks;
 	Clock::Handler<NicSubComponent>*	m_clockHandler;
