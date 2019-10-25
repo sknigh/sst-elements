@@ -62,11 +62,11 @@ void RdmaMpiPt2PtLib::_isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes
 		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
-	request->type = Hermes::Mpi::Request::Send;
 	SendEntry* entry = new SendEntry( buf, count, dataType, dest, tag, comm, request );
-	request->entry = entry;
+	entry->type = Hermes::Mpi::RequestData::Send;
+	*request = entry;
 
-	m_dbg.debug(CALL_INFO,1,2,"request=%p entry=%p\n",request,request->entry);
+	m_dbg.debug(CALL_INFO,1,2,"request=%p entry=%p\n",request,*request);
 
 	m_postedSends.push( entry );
 
@@ -95,11 +95,11 @@ void RdmaMpiPt2PtLib::_irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes
 		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
-	request->type = Hermes::Mpi::Request::Recv;
 	RecvEntry* entry = new RecvEntry( buf, count, dataType, src, tag, comm, request );
-	request->entry = entry;
+	entry->type = Hermes::Mpi::RequestData::Recv;
+	*request = entry;
 
-	m_dbg.debug(CALL_INFO,1,2,"request=%p entry=%p\n",request,request->entry);
+	m_dbg.debug(CALL_INFO,1,2,"request=%p entry=%p\n",request,*request);
 
 	Hermes::RDMA::Status* status = checkUnexpected( entry );
 
