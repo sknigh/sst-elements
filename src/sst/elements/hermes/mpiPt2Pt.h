@@ -38,13 +38,11 @@ class RequestData {
 	RequestData( const RequestData & ) {}
 	RequestData &operator=(const RequestData& ) { assert(0); }  
   public:
+	enum Type { Send, Recv } type;
 	virtual ~RequestData() = default; 
 };
 
-struct Request {
-	enum Type { Send, Recv } type;
-	RequestData *entry;
-};
+typedef RequestData* Request;
 
 enum DataType { Char, Int, Long, Float, Double, Complex };
 typedef Hermes::MemAddr MemAddr;
