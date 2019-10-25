@@ -116,6 +116,14 @@ class MpiLib : public Hermes::MP::Interface
 	void send(const Hermes::MemAddr& payload, uint32_t count, MP::PayloadDataType dtype, MP::RankID dest, uint32_t tag,
 			MP::Communicator group, MP::Functor* );
 
+	void isend(const Hermes::MemAddr& payload, uint32_t count, MP::PayloadDataType dtype,
+			MP::RankID dest, uint32_t tag, MP::Communicator group, MP::MessageRequest* req, MP::Functor* );
+
+	void irecv(const Hermes::MemAddr&, uint32_t count, MP::PayloadDataType dtype,
+			MP::RankID source, uint32_t tag, MP::Communicator group, MP::MessageRequest* req, MP::Functor*);
+
+	void waitall( int count, MP::MessageRequest req[], MP::MessageResponse* resp[], MP::Functor* );
+
   private:
 
     void selfLinkHandler( Event* event ) {

@@ -94,3 +94,59 @@ void MpiLib::send(const Hermes::MemAddr& addr, uint32_t count, MP::PayloadDataTy
 	assert( group == MP::GroupWorld );
 	m_pt2pt->send( addr, count, convertDataType( dtype ), dest, tag, Mpi::CommWorld, cb );
 }
+
+void MpiLib::isend(const Hermes::MemAddr& addr, uint32_t count, MP::PayloadDataType dtype,
+        MP::RankID dest, uint32_t tag, MP::Communicator group, MP::MessageRequest* req, MP::Functor* functor ) 
+{
+	Callback* cb = new Callback;
+
+	*cb = [=](int retval) {
+		m_dbg.debug(CALL_INFO_LAMBDA,"isend",1,2,"return to motif, count=%d dtype=%d dest=%d tag=%d\n",
+				count,convertDataType( dtype ),dest,tag);
+		if ( (*functor)(retval) ) {
+			delete functor;
+		}
+	};
+
+	assert( group == MP::GroupWorld );
+	m_pt2pt->isend( addr, count, convertDataType( dtype ), dest, tag, Mpi::CommWorld, (Mpi::Request*)req, cb );
+}
+
+void MpiLib::irecv(const Hermes::MemAddr& addr, uint32_t count, MP::PayloadDataType dtype,
+        MP::RankID source, uint32_t tag, MP::Communicator group, MP::MessageRequest* req, MP::Functor* functor) 
+{
+	Callback* cb = new Callback;
+
+	*cb = [=](int retval) {
+		m_dbg.debug(CALL_INFO_LAMBDA,"irecv",1,2,"return to motif, count=%d dtype=%d source=%d tag=%d\n",
+					count,convertDataType( dtype ),source,tag);
+		if ( (*functor)(retval) ) {
+			delete functor;
+		}
+	};
+
+	assert( group == MP::GroupWorld );
+	m_pt2pt->irecv( addr, count, convertDataType( dtype ), source, tag, Mpi::CommWorld, (Mpi::Request*)req, cb );
+}
+
+void MpiLib::waitall( int count, MP::MessageRequest req[], MP::MessageResponse* resp[], MP::Functor* functor )
+{
+	Callback* cb = new Callback;
+
+	Mpi::Status* status = new Mpi::Status[count];
+	int* flag = new int;
+
+	*cb = [=](int retval) {
+		m_dbg.debug(CALL_INFO_LAMBDA,"waitall",1,2,"return to motif\n");
+
+		//
+		//  We need to convert m_statue to resp
+		//
+		delete[] status;
+		delete flag;
+		if ( (*functor)(retval) ) {
+			delete functor;
+		}
+	};
+	m_pt2pt->testall( count, (Mpi::Request*)req, flag, status, true, cb );
+};
