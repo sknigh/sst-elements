@@ -441,12 +441,12 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 	int m_streamIdCnt;
 
-    bool m_sendStartBusy;
-    bool m_recvStartBusy;
+    int m_sendPktsPending;
+    int m_recvPktsPending;
 	bool m_recvDmaPending;
     bool m_sendDmaPending;
     SelfEvent* m_sendDmaBlockedEvent;
-	SelfEvent* m_recvDmaBlockedEvent;
+    SelfEvent* m_recvDmaBlockedEvent;
 
 	std::queue<SelfEvent*> m_selfEventQ;
 	Interfaces::SimpleNetwork::Request* m_pendingNetReq;

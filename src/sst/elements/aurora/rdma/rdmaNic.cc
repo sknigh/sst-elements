@@ -31,9 +31,9 @@ const char* RdmaNicSubComponent::m_cmdName[] = {
 const char* RdmaNicSubComponent::protoNames[] = {"Message","RdmaRead","RdmaWrite"};
 
 RdmaNicSubComponent::RdmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params),
-   	m_vc(0), m_streamIdCnt(0),
-	m_recvStartBusy(false), m_recvDmaPending(false), m_recvDmaBlockedEvent(NULL),
-    m_sendStartBusy(false), m_sendDmaPending(false), m_sendDmaBlockedEvent(NULL),
+	m_streamIdCnt(0),
+	m_recvPktsPending(0), m_recvDmaPending(false), m_recvDmaBlockedEvent(NULL),
+    m_sendPktsPending(0), m_sendDmaPending(false), m_sendDmaBlockedEvent(NULL),
     m_pendingNetReq(NULL)
 {
 
@@ -101,6 +101,8 @@ bool RdmaNicSubComponent::clockHandler( Cycle_t cycle ) {
     bool stop = processRecv() && processSend( cycle );
 
     if ( stop ) {
+
+        m_dbg.debug(CALL_INFO,2,1,"sendQ %zu\n",m_sendQ.size());
         stopClocking(cycle);
     }
 
@@ -262,9 +264,9 @@ void RdmaNicSubComponent::write( int coreNum, Event* event ) {
 
 bool RdmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
-	m_dbg.debug(CALL_INFO,3,SEND_DEBUG_MASK,"%d %d %d\n",! m_sendQ.empty(), m_sendStartBusy, m_pendingNetReq != NULL);
+	m_dbg.debug(CALL_INFO,3,SEND_DEBUG_MASK,"%d %d %d\n",! m_sendQ.empty(), m_sendPktsPending, m_pendingNetReq != NULL);
 
-	if ( m_sendQ.empty() || m_sendStartBusy || m_pendingNetReq ) {
+	if ( m_sendQ.empty() || m_sendPktsPending  > 1 ) {
         return true;
     }
 	SendEntry& entry = *m_sendQ.front();
@@ -328,7 +330,7 @@ bool RdmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 	m_dbg.debug(CALL_INFO,2,SEND_DEBUG_MASK,"payloadSize %d\n",payloadSize);
 	entry.decRemainingBytes( payloadSize );
 
-	m_sendStartBusy = true;
+	++m_sendPktsPending;
 
 	m_selfLink->send( m_txLatency, new SelfEvent( pkt, &entry, payloadSize, 0 == entry.remainingBytes() ) );
 
@@ -353,7 +355,6 @@ void RdmaNicSubComponent::processSendPktStart( NetworkPkt* pkt, SendEntry* entry
         m_dbg.debug(CALL_INFO,2,1,"have blocked dma request %d %zu\n",m_sendDmaBlockedEvent->type,m_sendDmaBlockedEvent->length);
     } else {
         m_dbg.debug(CALL_INFO,2,1,"start DMA xfer delay\n");
-        m_sendStartBusy = false;
         m_sendDmaPending = true;
         m_selfLink->send( calcFromHostBW_Latency( length ), event );
     }
@@ -363,7 +364,7 @@ void RdmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry,
 
     m_dbg.debug(CALL_INFO,2,1,"pkt send DMA latency complete\n");
 
-    m_sendStartBusy = false;
+    --m_sendPktsPending;
 
     SimpleNetwork::Request* req = makeNetReq( pkt, entry->getDestNode() );
 
@@ -418,7 +419,7 @@ Interfaces::SimpleNetwork::Request* RdmaNicSubComponent::makeNetReq( NetworkPkt*
 }
 
 bool RdmaNicSubComponent::processRecv() {
-    if ( m_recvStartBusy ) {
+    if ( m_recvPktsPending > 1 ) {
         return true;
     }
 
@@ -427,7 +428,7 @@ bool RdmaNicSubComponent::processRecv() {
         NetworkPkt* pkt = static_cast<NetworkPkt*>(req->takePayload());
         m_dbg.debug(CALL_INFO,3,1,"got network packet\n");
         m_selfLink->send( m_rxLatency, new SelfEvent( pkt ) );
-        m_recvStartBusy = true;
+        ++m_recvPktsPending;
         delete req;
     }
     return true;
@@ -459,7 +460,6 @@ void RdmaNicSubComponent::processRecvPktStart( SelfEvent* e )
         	m_recvDmaBlockedEvent = event;
     	} else {
         	m_selfLink->send( calcToHostBW_Latency( event->length ), event );
-        	m_recvStartBusy = false;
         	m_recvDmaPending = true;
     	}
 	}
@@ -470,7 +470,7 @@ void RdmaNicSubComponent::processRecvPktFini( SelfEvent* event )
 	NetworkPkt* pkt = event->pkt;
 	m_dbg.debug(CALL_INFO,2,RECV_DEBUG_MASK,"pkt is protocol %s\n",protoNames[pkt->getProto()]);
 
-    m_recvStartBusy = false;
+	--m_recvPktsPending;
 
 	switch ( pkt->getProto() ) {
 	  case Message:
@@ -634,7 +634,7 @@ void RdmaNicSubComponent::processRdmaReadPkt( NetworkPkt* pkt )
     assert( destPid < m_coreTbl.size() );
     Core& core = m_coreTbl[destPid];
 
-    m_recvStartBusy = false;
+    --m_recvPktsPending;
 
 	Hermes::RDMA::Addr srcAddr;
 	Hermes::RDMA::Addr destAddr;
