@@ -124,7 +124,7 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 
 	std::deque< Hermes::MemAddr > m_unexpectedRecvs;
 
-	RecvEntry* m_pendingLongEntry;
+	std::queue<RecvEntry*> m_pendingLongEntry;
 	std::deque<SendEntry*> m_pendingLongPut;
 	int m_longPutWinAddr;
 };
