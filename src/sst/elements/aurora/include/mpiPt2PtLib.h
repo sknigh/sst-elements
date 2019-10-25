@@ -22,6 +22,10 @@
 
 #define CALL_INFO_LAMBDA     __LINE__, __FILE__
 
+#define MPI_DBG_MASK_MSG_LVL1 (1<<1)
+#define MPI_DBG_MASK_MSG_LVL2 (1<<2)
+#define MPI_DBG_MASK_MSG_LVL3 (1<<3)
+
 namespace SST {
 namespace Aurora {
 
@@ -78,8 +82,8 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	void send(const Hermes::MemAddr& buf, int count, Mpi::DataType dataType, int dest, int tag,
         Hermes::Mpi::Comm comm, Hermes::Callback* callback )
 	{
-    	m_dbg.debug(CALL_INFO,1,2,"buf=0x%" PRIx64 " count=%d dataSize=%d dest=%d tag=%d comm=%d\n",
-            buf.getSimVAddr(),count,Mpi::sizeofDataType( dataType ), dest, tag, comm );
+		m_dbg.debug(CALL_INFO,1,1,"buf=0x%" PRIx64 " count=%d dataSize=%d dest=%d tag=%d comm=%d\n",
+			buf.getSimVAddr(),count,Mpi::sizeofDataType( dataType ), dest, tag, comm );
 
 		Callback* cb = new Callback( std::bind( &MpiPt2Pt::_send, this, buf, count, dataType, dest, tag, comm, callback ) );
 		m_selfLink->send( m_sendLatency,new SelfEvent(cb) );
@@ -95,7 +99,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	void recv(const Hermes::MemAddr& buf, int count, Mpi::DataType dataType, int src, int tag,
         Hermes::Mpi::Comm comm, Hermes::Mpi::Status* status, Hermes::Callback* callback )
 	{
-		m_dbg.debug(CALL_INFO,1,2,"buf=0x%" PRIx64 " count=%d dataSize=%d src=%d tag=%d comm=%d\n",
+		m_dbg.debug(CALL_INFO,1,1,"buf=0x%" PRIx64 " count=%d dataSize=%d src=%d tag=%d comm=%d\n",
 			buf.getSimVAddr(),count, Mpi::sizeofDataType( dataType ), src, tag, comm );
 		Callback* cb = new Hermes::Callback( std::bind( &MpiPt2Pt::_recv, this, buf, count, dataType, src, tag, comm, status, callback ) );
 		m_selfLink->send( m_recvLatency,new SelfEvent(cb) );
@@ -129,7 +133,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
   protected:
 
 	uint64_t calcMemcpyLatency( size_t bytes ) {
-		 m_dbg.debug(CALL_INFO,1,2,"memcpyLatency for %zu bytes is %" PRIu64 " ns.\n",bytes,  (uint64_t) bytes * m_memcpyLatency);
+		m_dbg.debug(CALL_INFO,1,1,"memcpyLatency for %zu bytes is %" PRIu64 " ns.\n",bytes,  (uint64_t) bytes * m_memcpyLatency);
 		return bytes * m_memcpyLatency;
 	}
 
@@ -145,8 +149,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
     	Callback *cb = new Callback( [=](int) {
         	m_dbg.debug(CALL_INFO_LAMBDA,"send",2,2,"back from isend\n");
         	Callback* cb = new Callback( [=](int retval ) {
-            	m_dbg.debug(CALL_INFO_LAMBDA,"send",1,2,"return to motif, count=%d dtype=%d dest=%d tag=%d\n",
-                    count,dataType,dest,tag);
+				m_dbg.debug(CALL_INFO_LAMBDA,"send",1,1,"return to motif, count=%d dtype=%d dest=%d tag=%d\n", count,dataType,dest,tag);
             	(*callback)(retval);
             	delete callback;
         	});
@@ -164,7 +167,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
     	Callback* cb = new Callback( [=](int) {
         	m_dbg.debug(CALL_INFO_LAMBDA,"recv",2,2,"back from irecv\n");
         	Callback* cb = new Callback( [=]( int retval ) {
-            	m_dbg.debug(CALL_INFO_LAMBDA,"recv",1,2,"return to motif, count=%d dtype=%d src=%d tag=%d\n", count,dataType,src,tag);
+				m_dbg.debug(CALL_INFO_LAMBDA,"recv",1,1,"return to motif, count=%d dtype=%d src=%d tag=%d\n", count,dataType,src,tag);
             	(*callback)(retval);
             	delete callback;
         	});
@@ -178,10 +181,10 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	void _test( Hermes::Mpi::Request* request, Hermes::Mpi::Status* status, bool blocking, Hermes::Callback* callback )
 	{
-		m_dbg.debug(CALL_INFO,1,2,"type=%s blocking=%s\n",request->type==Mpi::Request::Send?"Send":"Recv", blocking?"yes":"no");
+		m_dbg.debug(CALL_INFO,1,1,"type=%s blocking=%s\n",(*request)->type==Mpi::RequestData::Send?"Send":"Recv", blocking?"yes":"no");
 
 		Hermes::Callback* x  = new Hermes::Callback([=]( int retval ) {
-			m_dbg.debug(CALL_INFO_LAMBDA,"test",1,2,"returning\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"test",1,1,"returning\n");
 			m_selfLink->send(0,new SelfEvent(callback,retval) );
 		});
 
@@ -194,14 +197,14 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	void _testall( int count, Mpi::Request* request, int* flag, Mpi::Status* status, bool blocking, Callback* callback )
 	{
 		Hermes::Callback* x  = new Hermes::Callback([=]( int retval ) {
-			m_dbg.debug(CALL_INFO_LAMBDA,"testall",1,2,"returning\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"testall",1,1,"returning\n");
 			m_selfLink->send(0,new SelfEvent(callback,retval) );
 		});
 
-		m_dbg.debug(CALL_INFO,1,2,"count=%d blocking=%s\n",count,blocking?"yes":"no");
+		m_dbg.debug(CALL_INFO,1,1,"count=%d blocking=%s\n",count,blocking?"yes":"no");
 
 		for ( int i = 0; i < count; i++ ) {
-			m_dbg.debug(CALL_INFO,1,2,"request[%d].type=%s\n",i,request[i].type==Mpi::Request::Send?"Send":"Recv");
+			m_dbg.debug(CALL_INFO,1,1,"request[%d].type=%s\n",i,request[i]->type==Mpi::RequestData::Send?"Send":"Recv");
 		}
 		TestallEntryBase* entry = new TestallEntryBase( count, request, flag, status, blocking, x );
 
@@ -213,13 +216,13 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	void _testany( int count, Mpi::Request* request, int* indx, int* flag, Mpi::Status* status, bool blocking, Callback* callback )
 	{
 		Hermes::Callback* x  = new Hermes::Callback([=]( int retval ) {
-			m_dbg.debug(CALL_INFO_LAMBDA,"testany",1,2,"returning\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"testany",1,1,"returning\n");
 			m_selfLink->send(0,new SelfEvent(callback,retval));
 		});
 
-		m_dbg.debug(CALL_INFO,1,2,"count=%d\n",count);
+		m_dbg.debug(CALL_INFO,1,1,"count=%d\n",count);
 		for ( int i = 0; i < count; i++ ) {
-			m_dbg.debug(CALL_INFO,1,2,"request[%d]type=%s\n",i,request[i].type==Mpi::Request::Send?"Send":"Recv");
+			m_dbg.debug(CALL_INFO,1,1,"request[%d]type=%s\n",i,request[i]->type==Mpi::RequestData::Send?"Send":"Recv");
 		}
 		TestanyEntryBase* entry = new TestanyEntryBase( count, request, indx, flag, status, blocking, x );
 
@@ -300,12 +303,12 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
             TestBase( blocking, callback), request(request), status(status) {}
 
         ~TestEntryBase() {
-            delete request->entry;
-            request->entry = NULL;
+            delete *request;
+            *request = NULL;
         }
 
         bool isDone() {
-            Entry* entry = dynamic_cast<Entry*>(request->entry);
+            Entry* entry = dynamic_cast<Entry*>(*request);
             *status = entry->status;
             return entry->isDone();
         }
@@ -321,17 +324,17 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
         ~TestallEntryBase() {
             for ( int i = 0; i < count; i++ ) {
-                delete request[i].entry;
-                request[i].entry = NULL;
+                delete request[i];
+                request[i] = NULL;
             }
         }
         bool isDone() {
 
             for ( int i = 0; i < count; i++ ) {
-                Entry* entry = dynamic_cast<Entry*>(request[i].entry);
+                Entry* entry = dynamic_cast<Entry*>(request[i]);
                 if ( entry && entry->isDone() ) {
                     status[i] = entry->status;
-                    request[i].entry = NULL;
+                    request[i] = NULL;
                     delete entry;
                     ++done;
                 }
@@ -357,7 +360,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
             int done = 0;
             for ( int i = 0; i < count; i++ ) {
 
-                Entry* entry = dynamic_cast<Entry*>( request[i].entry );
+                Entry* entry = dynamic_cast<Entry*>( request[i] );
                 if ( entry->isDone() ) {
                     *index = i;
                     *flag = true;
@@ -391,26 +394,26 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	bool checkMatch( MsgHdrBase* hdr, RecvEntryBase* entry )
 	{
-		m_dbg.debug(CALL_INFO,1,2,"hdr tag=%d src=%d comm=%d count=%d datatype=%d\n",hdr->tag,hdr->srcRank,hdr->comm,hdr->count,hdr->dataType);
-		m_dbg.debug(CALL_INFO,1,2,"entry tag=%d src=%d comm=%d count=%d datatype=%d\n",entry->tag,entry->src,entry->comm,entry->count,entry->dataType);
+		m_dbg.debug(CALL_INFO,1,1,"hdr tag=%d src=%d comm=%d count=%d datatype=%d\n",hdr->tag,hdr->srcRank,hdr->comm,hdr->count,hdr->dataType);
+		m_dbg.debug(CALL_INFO,1,1,"entry tag=%d src=%d comm=%d count=%d datatype=%d\n",entry->tag,entry->src,entry->comm,entry->count,entry->dataType);
 		if ( entry->tag != Hermes::Mpi::AnyTag && entry->tag != hdr->tag ) {
-			m_dbg.debug(CALL_INFO,1,2,"tag no match posted=%d %d\n",entry->tag,hdr->tag);
+			m_dbg.debug(CALL_INFO,1,1,"tag no match posted=%d %d\n",entry->tag,hdr->tag);
 			return false;
 		}
 		if ( entry->src != Hermes::Mpi::AnySrc && entry->src != hdr->srcRank ) {
-			m_dbg.debug(CALL_INFO,1,2,"rank no match posted=%d %d\n",entry->src,hdr->srcRank);
+			m_dbg.debug(CALL_INFO,1,1,"rank no match posted=%d %d\n",entry->src,hdr->srcRank);
 			return false;
 		}
 		if ( entry->comm != hdr->comm ) {
-			m_dbg.debug(CALL_INFO,1,2,"comm no match posted=%d %d\n",entry->comm,hdr->comm);
+			m_dbg.debug(CALL_INFO,1,1,"comm no match posted=%d %d\n",entry->comm,hdr->comm);
 			return false;
 		}
 		if ( entry->count != hdr->count ) {
-			m_dbg.debug(CALL_INFO,1,2,"count no match posted=%d %d\n",entry->count,hdr->count);
+			m_dbg.debug(CALL_INFO,1,1,"count no match posted=%d %d\n",entry->count,hdr->count);
 			return false;
 		}
 		if ( entry->dataType != hdr->dataType ) {
-			m_dbg.debug(CALL_INFO,1,2,"dataType no match posted=%d %d\n",entry->dataType,hdr->dataType);
+			m_dbg.debug(CALL_INFO,1,1,"dataType no match posted=%d %d\n",entry->dataType,hdr->dataType);
 			return false;
 		}
 		return true;
@@ -425,7 +428,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	void mallocSendBuffers( Hermes::Callback* callback, int retval ) {
 		size_t length = m_numSendBuffers * ( m_shortMsgLength + sizeof(getMsgHdrSize()) );
-		m_dbg.debug(CALL_INFO,1,2,"length=%zu\n",length);
+		m_dbg.debug(CALL_INFO,1,1,"length=%zu\n",length);
 
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = std::bind( &MpiPt2Pt::mallocRecvBuffers, this, callback, std::placeholders::_1 );
@@ -434,7 +437,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	void mallocRecvBuffers( Hermes::Callback* callback, int retval ) {
 		size_t length = m_numRecvBuffers *  ( m_shortMsgLength + sizeof(getMsgHdrSize()) );
-		m_dbg.debug(CALL_INFO,1,2,"length=%zu\n",length);
+		m_dbg.debug(CALL_INFO,1,1,"length=%zu\n",length);
 
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = std::bind( &MpiPt2Pt::postRecvBuffer, this, callback, m_numRecvBuffers, std::placeholders::_1 );
@@ -444,21 +447,21 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	void processSendQ( Hermes::Callback* callback, int retval )
 	{
 		if ( ! m_postedSends.empty() ) {
-			m_dbg.debug(CALL_INFO,1,2,"have entry\n");
+			m_dbg.debug(CALL_INFO,1,1,"have entry\n");
 
 			SendEntryBase* entry = m_postedSends.front();
 			m_postedSends.pop();
 
 			Hermes::Callback* cb = new Hermes::Callback;
 			*cb = [=](int) {
-				m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,2,"callback\n");
+				m_dbg.debug(CALL_INFO_LAMBDA,"processSendQ",1,1,"callback\n");
 				processSendQ( callback, 0 );
 			};
 
 			processSendEntry( cb, entry );
 
 		} else {
-			m_dbg.debug(CALL_INFO,1,2,"call callback\n");
+			m_dbg.debug(CALL_INFO,1,1,"call callback\n");
 			(*callback)(0);
 			delete callback;
 		}
