@@ -316,11 +316,10 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 	static const char *m_cmdName[];
 	std::queue< SendEntry* > m_sendQ;
 
-	int m_vc;
-	bool m_recvStartBusy;
+	int m_recvPktsPending;
 	bool m_recvDmaPending;
 
-	bool m_sendStartBusy;
+	int m_sendPktsPending;
 	bool m_sendDmaPending;
 
 	SelfEvent* m_recvDmaBlockedEvent;
