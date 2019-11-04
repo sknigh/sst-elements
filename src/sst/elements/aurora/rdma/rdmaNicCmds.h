@@ -72,13 +72,14 @@ class PostRecvCmd : public NicCmd {
 
 class SendCmd : public NicCmd {
   public:
-	SendCmd( Hermes::ProcAddr proc, Hermes::RDMA::RqId rqId, Hermes::MemAddr& src, size_t length ) :
-		NicCmd( Send ), proc(proc), rqId(rqId), src(src), length(length){} 
+	SendCmd( Hermes::ProcAddr proc, Hermes::RDMA::RqId rqId, const Hermes::MemAddr& src, size_t length, int* handle ) :
+		NicCmd( Send ), proc(proc), rqId(rqId), src(src), length(length), handle(handle) { } 
 
 	Hermes::ProcAddr proc;
 	Hermes::RDMA::RqId rqId;
 	Hermes::MemAddr src;
 	size_t length;
+	int* handle;
     NotSerializable(SST::Aurora::RDMA::SendCmd);
 };
 
