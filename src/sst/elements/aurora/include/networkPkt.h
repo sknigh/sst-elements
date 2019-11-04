@@ -22,6 +22,7 @@
 namespace SST {
 namespace Aurora {
 
+typedef uint64_t StreamId;
 class NetworkPkt : public Event {
   public:
 
@@ -39,10 +40,11 @@ class NetworkPkt : public Event {
 	// 4 bytes stream offset 
 	int payloadSize() { return m_payloadSize + 16; } 
 
+	uint64_t pktNum;
 	void setProto( uint8_t proto ) { m_proto = proto; }
 	void setHead() { m_head = true; } 
 
-	void setStreamId( int id  ) { m_streamId = id; } 
+	void setStreamId( StreamId id  ) { m_streamId = id; } 
 	void setStreamOffset( uint32_t offset ) { m_streamOffset = offset; }
 	void setSrcPid( int pid ) { m_srcPid = pid; }
 	void setSrcNid( int nid ) { m_srcNid = nid; }
@@ -50,7 +52,7 @@ class NetworkPkt : public Event {
 
 	bool isHead() { return m_head; }
 	uint8_t getProto() { return m_proto; }	
-	int getStreamId() { return m_streamId; }
+	StreamId getStreamId() { return m_streamId; }
 	uint32_t getStreamOffset() { return m_streamOffset; }
 	int getDestPid() { return m_destPid; }
 	int getSrcPid() { return m_srcPid; }
@@ -106,6 +108,7 @@ class NetworkPkt : public Event {
 		ser & m_proto;
 		ser & m_streamId;
 		ser & m_streamOffset;
+		ser & pktNum;
     }
 
   private:
@@ -118,7 +121,7 @@ class NetworkPkt : public Event {
 	int m_destPid;
 	bool m_head;
 	unsigned char m_proto;
-	int m_streamId;
+	StreamId m_streamId;
 	uint32_t m_streamOffset;
 
 
