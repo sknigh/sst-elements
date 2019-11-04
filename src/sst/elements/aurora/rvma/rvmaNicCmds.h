@@ -129,8 +129,9 @@ class PutCmd : public NicCmd {
   public:
 	PutCmd() {}
 
-	PutCmd( Hermes::MemAddr srcAddr, size_t size, Hermes::ProcAddr proc, Hermes::RVMA::VirtAddr virtAddr, size_t offset, Hermes::RVMA::Completion* completion ) :
-		NicCmd(Put), srcAddr(srcAddr), size(size), proc(proc), virtAddr(virtAddr), offset( offset ), completion(completion)
+	PutCmd( const Hermes::MemAddr& srcAddr, size_t size, Hermes::ProcAddr proc, Hermes::RVMA::VirtAddr virtAddr, size_t offset, 
+			Hermes::RVMA::Completion* completion, int* handle ) :
+		NicCmd(Put), srcAddr(srcAddr), size(size), proc(proc), virtAddr(virtAddr), offset( offset ), completion(completion), handle(handle)
 	{}
 
 	Hermes::MemAddr srcAddr;
@@ -139,6 +140,7 @@ class PutCmd : public NicCmd {
 	Hermes::RVMA::VirtAddr virtAddr;
 	size_t offset;
 	Hermes::RVMA::Completion* completion;
+	int* handle;
 
     NotSerializable(PutCmd);
 };
