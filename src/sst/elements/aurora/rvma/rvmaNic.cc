@@ -27,7 +27,7 @@ const char* RvmaNicSubComponent::m_cmdName[] = {
 RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : NicSubComponent(id, params ),
 	m_recvPktsPending(0), m_recvDmaPending(false), m_recvDmaBlockedEvent(NULL),
 	m_sendPktsPending(0), m_sendDmaPending(false), m_sendDmaBlockedEvent(NULL),
-	m_pendingNetReq(NULL)
+	m_pendingNetReq(NULL), m_streamIdCnt(0)
 {
    if ( params.find<bool>("print_all_params",false) ) {
         printf("Aurora::RVMA::RvmaNicSubComponent()\n");
@@ -37,6 +37,8 @@ RvmaNicSubComponent::RvmaNicSubComponent( ComponentId_t id, Params& params ) : N
     m_dbg.init("@t:Aurora::RVMA::Nic::@p():@l ", params.find<uint32_t>("verboseLevel",0),
             params.find<uint32_t>("verboseMask",0), Output::STDOUT );
 
+	m_curSentPktNum.resize(32768,0);
+	m_curRecvPktNum.resize(32768,0);
     m_dbg.debug(CALL_INFO,1,2,"\n");
 
 	m_maxAvailBuffers = m_maxCompBuffers = params.find<int>("maxBuffers",32);
@@ -64,9 +66,9 @@ void RvmaNicSubComponent::setNumCores( int num ) {
 	NicSubComponent::setNumCores( num );
 	m_coreTbl.resize( getNumCores() );
 	for ( int i = 0; i < m_coreTbl.size(); i++ ) {
-		m_coreTbl[i].m_windowTbl.resize( m_maxNumWindows );
+		m_coreTbl[i].windowTblResize( m_maxNumWindows );
 		for ( int j = 0; j < m_maxNumWindows; j++ ) {
-				m_coreTbl[i].m_windowTbl[j].setMaxes( m_maxAvailBuffers, m_maxCompBuffers );
+				m_coreTbl[i].getWindow(j).setMaxes( m_maxAvailBuffers, m_maxCompBuffers );
 		}
 	}
 }
@@ -77,7 +79,7 @@ void RvmaNicSubComponent::handleEvent( int core, Event* event ) {
 
 	NicCmd* cmd = static_cast<NicCmd*>(event); 
 
-    m_dbg.debug(CALL_INFO,3,2,"core=%d %s\n",core, m_cmdName[cmd->type]);
+    m_dbg.debug(CALL_INFO,3,1,"core=%d %s\n",core, m_cmdName[cmd->type]);
 	(this->*m_cmdFuncTbl[cmd->type])( core, event );
 }
 
@@ -86,9 +88,9 @@ void RvmaNicSubComponent::initWindow( int coreNum, Event* event )
 	InitWindowCmd* cmd = static_cast<InitWindowCmd*>(event);
 	Core& core = m_coreTbl[coreNum];
 	int window = -1;
-	for ( int i = 0; i < core.m_windowTbl.size(); i++ ) {
-		if ( ! core.m_windowTbl[i].isActive() ) {
-			core.m_windowTbl[i].setActive( cmd->addr, cmd->threshold, cmd->type ); 
+	for ( int i = 0; i < core.getWindowTblSize(); i++ ) {
+		if ( ! core.getWindow(i).isActive() ) {
+			core.getWindow(i).setActive( cmd->addr, cmd->threshold, cmd->type ); 
 			window = i;
 			break;
 		}
@@ -103,11 +105,11 @@ void RvmaNicSubComponent::closeWindow( int coreNum, Event* event )
 	CloseWindowCmd* cmd = static_cast<CloseWindowCmd*>(event);
 	Core& core = m_coreTbl[coreNum];
 	int retval = -2;
-	if (  cmd->window < core.m_windowTbl.size() ) {
-		if ( ! core.m_windowTbl[cmd->window].isActive() ) {
+	if (  cmd->window < core.getWindowTblSize() ) {
+		if ( ! core.getWindow(cmd->window).isActive() ) {
 			retval = -1;
 		} else {
-			core.m_windowTbl[cmd->window].close();	
+			core.getWindow(cmd->window).close();
 			retval = 0;
 		}
 	}
@@ -121,8 +123,8 @@ void RvmaNicSubComponent::incEpoch( int coreNum, Event* event )
 	int retval = -2;
 	WinIncEpochCmd* cmd = static_cast<WinIncEpochCmd*>(event);
     m_dbg.debug(CALL_INFO,1,1,"core=%d window=%d\n",coreNum, cmd->window);
-	if (  cmd->window < core.m_windowTbl.size() ) {
-		retval = core.m_windowTbl[cmd->window].incEpoch( );
+	if (  cmd->window < core.getWindowTblSize() ) {
+		retval = core.getWindow(cmd->window).incEpoch( );
 	}
 	sendResp( coreNum, new RetvalResp(retval) );	
 }
@@ -133,9 +135,9 @@ void RvmaNicSubComponent::getEpoch( int coreNum, Event* event )
 	int retval = -2;
 	WinGetEpochCmd* cmd = static_cast<WinGetEpochCmd*>(event);
     m_dbg.debug(CALL_INFO,1,1,"core=%d window=%d\n",coreNum, cmd->window);
-	if (  cmd->window < core.m_windowTbl.size() ) {
+	if (  cmd->window < core.getWindowTblSize() ) {
 		int epoch;
-		retval = core.m_windowTbl[cmd->window].getEpoch( &epoch );
+		retval = core.getWindow(cmd->window).getEpoch( &epoch );
 	}
 	sendResp( coreNum, new WinGetEpochResp(retval) );	
 }
@@ -147,8 +149,8 @@ void RvmaNicSubComponent::getBufPtrs( int coreNum, Event* event )
 	WinGetBufPtrsCmd* cmd = static_cast<WinGetBufPtrsCmd*>(event);
     m_dbg.debug(CALL_INFO,1,1,"core=%d window=%d\n",coreNum, cmd->window);
 	WinGetBufPtrsResp* resp = new WinGetBufPtrsResp();
-	if (  cmd->window < core.m_windowTbl.size() ) {
-		core.m_windowTbl[cmd->window].getBufPtrs( resp->completions, cmd->max );
+	if (  cmd->window < core.getWindowTblSize() ) {
+		core.getWindow(cmd->window).getBufPtrs( resp->completions, cmd->max );
 	}
 	sendResp( coreNum, resp );	
 }
@@ -160,15 +162,15 @@ void RvmaNicSubComponent::postBuffer( int coreNum, Event* event )
 	PostBufferCmd* cmd = static_cast<PostBufferCmd*>(event);
 
 	int ret;
-	if (  cmd->window < core.m_windowTbl.size() ) {
-		ret = core.m_windowTbl[cmd->window].postBuffer( cmd->addr, cmd->size, cmd->completion );
+	if (  cmd->window < core.getWindowTblSize() ) {
+		ret = core.getWindow(cmd->window).postBuffer( cmd->addr, cmd->size, cmd->completion );
 	} else {
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed window %d out of range\n", getNodeNum(), cmd->window );
 	}
 
     m_dbg.debug(CALL_INFO,1,1,"core=%d windowSlot=%d winAddr=0x%" PRIx64 " buffAddr=0x%" PRIx64 " size=%zu completion=%p numAvailBuffers=%d\n",
-				coreNum, cmd->window, core.m_windowTbl[cmd->window].getWinAddr(), cmd->addr.getSimVAddr(),
-				cmd->size, cmd->completion, core.m_windowTbl[cmd->window].numAvailBuffers());
+				coreNum, cmd->window, core.getWindow(cmd->window).getWinAddr(), cmd->addr.getSimVAddr(),
+				cmd->size, cmd->completion, core.getWindow(cmd->window).numAvailBuffers());
 
 	if ( ret != 0 ) {
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed ret=%d\n", getNodeNum(), ret);
@@ -185,9 +187,9 @@ void RvmaNicSubComponent::postOneTimeBuffer( int coreNum, Event* event )
 	int window = -1;
 	PostOneTimeBufferCmd* cmd = static_cast<PostOneTimeBufferCmd*>(event);
 
-	for ( int i = 0; i < core.m_windowTbl.size(); i++ ) {
-		if ( ! core.m_windowTbl[i].isActive() ) {
-			core.m_windowTbl[i].setActive( cmd->winAddr, cmd->threshold, cmd->type, true ); 
+	for ( int i = 0; i < core.getWindowTblSize(); i++ ) {
+		if ( ! core.getWindow(i).isActive() ) {
+			core.getWindow(i).setActive( cmd->winAddr, cmd->threshold, cmd->type, true ); 
 			window = i;
 			break;
 		}
@@ -200,7 +202,7 @@ void RvmaNicSubComponent::postOneTimeBuffer( int coreNum, Event* event )
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed couldn't allocate window\n", getNodeNum());
 	}
 
-	int ret = core.m_windowTbl[window].postBuffer( cmd->bufAddr, cmd->size, cmd->completion );
+	int ret = core.getWindow(window).postBuffer( cmd->bufAddr, cmd->size, cmd->completion );
 
 	if ( ret != 0 ) {
 		m_dbg.fatal(CALL_INFO,-1,"node %d, failed ret=%d\n", getNodeNum(), ret);
@@ -218,7 +220,7 @@ void RvmaNicSubComponent::put( int coreNum, Event* event )
     m_dbg.debug(CALL_INFO,1,1,"core=%d nid=%d pid=%d size=%zu virtAddr=0x%" PRIx64 " offset=%zu srcAddr=0x%" PRIx64 "\n",
 			coreNum, cmd->proc.node, cmd->proc.pid, cmd->size, cmd->virtAddr, cmd->offset, cmd->srcAddr.getSimVAddr());
 
-	m_sendQ.push( new SendEntry( coreNum, cmd ) );
+	m_sendQ.push( new SendEntry( m_streamIdCnt++, coreNum, cmd ) );
 
 	if ( cmd->completion ) { 
 		sendResp( coreNum, new RetvalResp(0) );	
@@ -230,14 +232,14 @@ void RvmaNicSubComponent::mwait( int coreNum, Event* event )
 	MwaitCmd* cmd = static_cast<MwaitCmd*>(event);
     m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"core=%d completion %p\n",coreNum, cmd->completion);
 	Core& core = m_coreTbl[coreNum];
-	assert( ! core.m_mwaitCmd );
+	assert( ! core.getWaitCmd() );
 
 	if ( cmd->completion->count ) {
 		m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"mwait returning to host\n");
 		sendResp( coreNum, new RetvalResp(0) );	
 		delete cmd;
 	} else {
-		core.m_mwaitCmd = cmd;
+		core.setWaitCmd( cmd );
 	}
 }
 
@@ -259,7 +261,7 @@ bool RvmaNicSubComponent::clockHandler( Cycle_t cycle ) {
 	bool stop = processRecv() && processSend( cycle );
 
 	if ( stop ) {
-		m_dbg.debug(CALL_INFO,2,1,"sendQ %zu %d\n",m_sendQ.size(),m_sendPktsPending);
+		m_dbg.debug(CALL_INFO,3,1,"sendQ %zu %d\n",m_sendQ.size(),m_sendPktsPending);
 		stopClocking(cycle);
 	}
 
@@ -280,7 +282,7 @@ void RvmaNicSubComponent::handleSelfEvent( Event* e ) {
 
 void RvmaNicSubComponent::handleSelfEvent( SelfEvent* event ) {
 
-	m_dbg.debug(CALL_INFO,2,1,"type %d\n",event->type);
+	m_dbg.debug(CALL_INFO,3,1,"type %d\n",event->type);
 	switch ( event->type ) {
 	  case SelfEvent::TxLatency:
 		processSendPktStart( event->pkt, event->sendEntry, event->length, event->lastPkt  );
@@ -295,7 +297,7 @@ void RvmaNicSubComponent::handleSelfEvent( SelfEvent* event ) {
 		break;
 
 	  case SelfEvent::RxDmaDone:
-		processRecvPktFini( event->pid, event->window, event->pkt, event->length, event->rvmaOffset );
+		processRecvPktFini( event->pid, event->stream, event->pkt, event->rvmaOffset, event->length );
 		break;
 
 	  default:
@@ -306,7 +308,7 @@ void RvmaNicSubComponent::handleSelfEvent( SelfEvent* event ) {
 
 bool RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
-	if ( m_sendQ.empty() || m_sendPktsPending > 1 ) {
+	if ( m_sendQ.empty() || m_sendPktsPending > 0 ) {
 		return true;
 	}
 
@@ -315,13 +317,51 @@ bool RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 	NetworkPkt* pkt = new NetworkPkt( getPktSize() );
 
 	pkt->setDestPid( entry.destPid() );
+	pkt->setSrcNid( getNodeNum() );
+	pkt->setSrcPid( entry.getSrcCore() );
+	pkt->setStreamId( entry.getStreamId() );
 
-	Hermes::RVMA::VirtAddr rvmaAddr = entry.virtAddr();
 	uint64_t rvmaOffset = entry.offset();
-	pkt->payloadPush( &rvmaAddr, sizeof( rvmaAddr ) );
+
+	if ( 0 == rvmaOffset ) {
+
+		pkt->setHead();
+
+		Hermes::RVMA::VirtAddr rvmaAddr = entry.virtAddr();
+		size_t payloadLength = entry.length();
+		int numPkts;
+
+		int hdrSize = sizeof(rvmaAddr) + sizeof(payloadLength) + sizeof(numPkts);
+
+		numPkts =  payloadLength / getPktSize(); 
+
+		if ( payloadLength % getPktSize() ) {
+			++numPkts;
+		}
+
+		size_t streamLength = hdrSize + numPkts * sizeof( rvmaOffset ) + payloadLength; 
+
+		numPkts =  streamLength / getPktSize(); 
+
+		if ( streamLength % getPktSize() ) {
+			if ( (streamLength + sizeof(rvmaOffset)) / getPktSize() == numPkts ) {
+				++numPkts;
+			} else {
+				numPkts+=2;
+			}
+		}
+
+		pkt->payloadPush( &numPkts, sizeof( numPkts ) );
+		pkt->payloadPush( &rvmaAddr, sizeof( rvmaAddr ) );
+		pkt->payloadPush( &payloadLength, sizeof( payloadLength ) );
+		m_dbg.debug(CALL_INFO,2,1,"core=%d first packet numPkts=%d payloadLength=%zu rvmaAddr=%" PRIx64 " pktSize=%d\n",
+						entry.getSrcCore(), numPkts, payloadLength, rvmaAddr, getPktSize()  );
+	} 
+
 	pkt->payloadPush( &rvmaOffset, sizeof( rvmaOffset ) );
 
 	int bytesLeft = pkt->pushBytesLeft();
+	assert( bytesLeft );
 	int payloadSize = entry.remainingBytes() <  bytesLeft ? entry.remainingBytes() : bytesLeft;
 
 	pkt->payloadPush( entry.dataAddr(), payloadSize );
@@ -329,17 +369,15 @@ bool RvmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 	m_dbg.debug(CALL_INFO,2,1,"core=%d destNid=%d destPid=%d payloadSize %d\n",entry.getSrcCore(), entry.getDestNode(), entry.destPid(),  payloadSize);
 	entry.decRemainingBytes( payloadSize );
 
-	pkt->setSrcNid( getNodeNum() );
-	pkt->setSrcPid( entry.getSrcCore() );
-
 	++m_sendPktsPending;
-
-	m_selfLink->send( m_txLatency, new SelfEvent( pkt, &entry, payloadSize, 0 == entry.remainingBytes() ) );
 
 	if ( 0 == entry.remainingBytes() ) {
 		m_dbg.debug(CALL_INFO,2,1,"last packet, remove send entry from Q\n");
 		m_sendQ.pop();
 	}
+
+	m_selfLink->send( m_txLatency, new SelfEvent( pkt, &entry, payloadSize, 0 == entry.remainingBytes() ) );
+
 	return true;
 }
 
@@ -368,6 +406,7 @@ void RvmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry,
 	--m_sendPktsPending;
 
 	SimpleNetwork::Request* req = makeNetReq( pkt, entry->getDestNode() );
+	pkt->pktNum = m_curSentPktNum[ entry->getDestNode() ]++;
 
 	if ( lastPkt ) {
 		m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL1,"success, sent to node %d pid %d, bytes=%zu completion=%p\n",
@@ -378,11 +417,10 @@ void RvmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry,
 		} else { 
 			entry->getCmd().completion->count = entry->getCmd().size;
 			Core& core = m_coreTbl[srcCore];
-			if ( core.m_mwaitCmd && core.m_mwaitCmd->completion == entry->getCmd().completion ) {
+			if ( core.getWaitCmd() && core.getWaitCmd()->completion == entry->getCmd().completion ) {
 				m_dbg.debug(CALL_INFO,2,1,"completed put matches\n");
 				sendResp( srcCore, new RetvalResp(0) );	
-				delete core.m_mwaitCmd;
-				core.m_mwaitCmd = NULL;
+				core.clearWaitCmd();
 			}
 		}
 		delete entry;
@@ -398,12 +436,12 @@ void RvmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry,
 
 void RvmaNicSubComponent::netReqSent(  )
 {
-	m_dbg.debug(CALL_INFO,2,1,"\n");
 	if ( m_sendDmaBlockedEvent ) {
 		m_dbg.debug(CALL_INFO,2,1,"have blocked dma request %d %zu\n",m_sendDmaBlockedEvent->type,m_sendDmaBlockedEvent->length);
 		m_selfLink->send( calcFromHostBW_Latency(m_sendDmaBlockedEvent->length), m_sendDmaBlockedEvent );
 		m_sendDmaBlockedEvent = NULL;
 	} else {
+		m_dbg.debug(CALL_INFO,2,1,"set pending false\n");
 		m_sendDmaPending = false;
 	}
 }
@@ -440,6 +478,7 @@ bool RvmaNicSubComponent::processRecv() {
 	Interfaces::SimpleNetwork::Request* req = getNetworkLink().recv( m_vc );
 	if ( req ) {
 		NetworkPkt* pkt = static_cast<NetworkPkt*>(req->takePayload());
+		assert( pkt->pktNum == m_curRecvPktNum[pkt->getSrcNid()]++ );
 		m_dbg.debug(CALL_INFO,3,1,"got network packet\n");
 		m_selfLink->send( m_rxLatency, new SelfEvent( pkt ) );
 		++m_recvPktsPending;
@@ -450,30 +489,66 @@ bool RvmaNicSubComponent::processRecv() {
 
 void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 {
-	Buffer* buffer = NULL;
-	Hermes::RVMA::VirtAddr rvmaAddr;
-	uint64_t rvmaOffset;
-	pkt->payloadPop( &rvmaAddr,sizeof( rvmaAddr ) );
-	pkt->payloadPop( &rvmaOffset,sizeof( rvmaOffset ) );
+	RecvStream* stream = NULL;
+
+	int srcNid = pkt->getSrcNid();
+	int srcPid = pkt->getSrcPid();
 	int destPid = pkt->getDestPid();
-	size_t length = pkt->popBytesLeft();
-
-	m_dbg.debug(CALL_INFO,2,1,"srcNid=%d srcPid=%d core=%d rvmaAddr=0x%" PRIx64 " offset=%" PRIu64 " length=%zu\n",
-			pkt->getSrcNid(), pkt->getSrcPid(),
-			pkt->getDestPid(), rvmaAddr, rvmaOffset, length );
-
+	StreamId streamId = pkt->getStreamId();
 	assert( destPid < m_coreTbl.size() );
 
 	Core& core = m_coreTbl[destPid];
 
-	int window = core.findWindow( rvmaAddr );
-	if ( window == -1 ) {
-		m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find window for virtaddr 0x%" PRIx64 "\n", getNodeNum(), rvmaAddr);
+	if ( pkt->isHead() ) {
+
+		if ( core.activeRecvStream(srcNid, srcPid, streamId ) ) {
+			m_dbg.fatal(CALL_INFO,-1,"node %d, got a head packet for curretnly active stream from nid=%d pid=%d\n", srcNid, srcPid );
+		} 
+
+		int numPkts;
+		Hermes::RVMA::VirtAddr rvmaAddr;
+		size_t length;
+		pkt->payloadPop( &numPkts,sizeof( numPkts ) );
+		pkt->payloadPop( &rvmaAddr,sizeof( rvmaAddr ) );
+		pkt->payloadPop( &length,sizeof( length ) );
+
+		m_dbg.debug(CALL_INFO,2,1,"head pkt from srcNid=%d srcPid=%d for core=%d rvmaAddr=0x%" PRIx64 " length=%zu\n",
+			srcNid, srcPid, pkt->getDestPid(), rvmaAddr, length );
+
+		stream = core.createRecvStream( rvmaAddr, length );
+
+		if ( NULL == stream ) {
+			m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find buffer for virtaddr 0x%" PRIx64 "\n", getNodeNum(), rvmaAddr);
+		} else {
+			m_dbg.debug(CALL_INFO,2,1,"found buffer for virtAddr 0x%" PRIx64 "\n",rvmaAddr);
+		}
+
+		stream->setNumPkts(numPkts);
+
+		core.setActiveRecvStream( srcNid, srcPid, streamId, stream );
 	} else {
-		m_dbg.debug(CALL_INFO,2,1,"found window %d for virtAddr 0x%" PRIx64 "\n",window,rvmaAddr);
+		stream  = core.findActiveRecvStream( srcNid, srcPid, streamId  );
+
+		if ( NULL  == stream ) {
+			m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find active stream for nid=%d pid=%d\n", srcNid,srcPid);
+		}
+	}
+	stream->incRcvdPkts();
+
+	if ( stream->rcvdAllPkts() ) {
+		m_dbg.debug(CALL_INFO,2,1,"deactivate stream from srcNid=%d srcPid=%d for core=%d\n", srcNid, srcPid, pkt->getDestPid() );
+
+		core.clearActiveRecvStream( srcNid, srcPid, streamId );
 	}
 
-	SelfEvent* event = new SelfEvent( destPid, window, pkt, length, rvmaOffset );
+	uint64_t rvmaOffset;
+	pkt->payloadPop( &rvmaOffset,sizeof( rvmaOffset ) );
+
+	size_t length = pkt->popBytesLeft();
+
+	m_dbg.debug(CALL_INFO,2,1,"%zu bytes of payload dest offset=%" PRIu64 "\n", length, rvmaOffset );
+
+	SelfEvent* event = new SelfEvent( destPid, stream, pkt, length, rvmaOffset );
 
 	if ( m_recvDmaPending ) {
 		m_dbg.debug(CALL_INFO,2,1,"pkt DMA blocking\n");
@@ -485,42 +560,45 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 	}
 }
 
-void RvmaNicSubComponent::processRecvPktFini( int destPid, int window, NetworkPkt* pkt, size_t length, uint64_t rvmaOffset ) 
+void RvmaNicSubComponent::processRecvPktFini( int destPid, RecvStream* stream, NetworkPkt* pkt, uint64_t rvmaOffset, size_t length ) 
 {
 	Core& core = m_coreTbl[destPid];
-	m_dbg.debug(CALL_INFO,2,1,"DMA finished core=%d window=%d length=%zu offset=%" PRIu64 "\n",destPid, window, length, rvmaOffset);
+	m_dbg.debug(CALL_INFO,2,1,"DMA finished core=%d length=%zu offset=%" PRIu64 "\n",destPid, length, rvmaOffset);
 
-	Buffer* buffer = core.m_windowTbl[window].recv( rvmaOffset, pkt->payload(), length );
-	if ( NULL == buffer ) {
-		m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find buffer for window %d\n", getNodeNum(), window);
-	}
-	delete pkt;
+	stream->recv( pkt->payload(), rvmaOffset, length );
 
 	--m_recvPktsPending;
 
-	if ( buffer && buffer->filled ) { 
+	Buffer& buffer = stream->buffer();
+	if ( stream->rcvdAllPkts() && buffer.isEndOfEpoch() ) { 
+
+		Hermes::RVMA::Completion* completion = buffer.getCompletion();
+
 		m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL1,"success, received msg from node %d pid %d, bytes=%zu completion %p\n",
-				pkt->getSrcNid(), pkt->getSrcPid(), length, buffer->completion );
+				pkt->getSrcNid(), pkt->getSrcPid(), length, completion );
 
-		m_dbg.debug(CALL_INFO,2,1,"buffer filled nBytes=%zu virtAddr=0x%" PRIx64 " count=%zu\n",
-										buffer->nBytes, buffer->completion->addr.getSimVAddr(), buffer->completion->count);
+		m_dbg.debug(CALL_INFO,2,1,"buffer filled nBytes=%zu virtAddr=0x%" PRIx64 " backing=%p count=%zu\n",
+						buffer.getBytesRcvd(), completion->addr.getSimVAddr(), completion->addr.getSimVAddr(), completion->count);
 
-		m_dbg.debug(CALL_INFO,2,1,"window=%d availBuffers=%d\n",window, core.m_windowTbl[window].numAvailBuffers() );
-
-		if ( core.m_mwaitCmd ) {
-			m_dbg.debug(CALL_INFO,2,NIC_DBG_MASK_MSG_LVL2,"currently waiting %p %p\n", core.m_mwaitCmd->completion, buffer->completion );
-			if ( core.m_mwaitCmd->completion == buffer->completion  ) {
+		if ( core.getWaitCmd() ) {
+			m_dbg.debug(CALL_INFO,2,NIC_DBG_MASK_MSG_LVL2,"currently waiting %p %p\n", core.getWaitCmd()->completion, completion );
+			if ( core.getWaitCmd()->completion == completion  ) {
 				sendResp( destPid, new RetvalResp(0) );	
 				m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"mwait returning to host\n");
-				delete core.m_mwaitCmd;
-				core.m_mwaitCmd = NULL;
+				core.clearWaitCmd();
 			}
 		}
 
-		if ( core.m_windowTbl[window].isOneTime() ) {
+		int window = stream->getWindowNum();
+		if ( core.getWindow(window).isOneTime() ) {
 			m_dbg.debug(CALL_INFO,2,1,"close windowSlot=%d\n",window);
-			core.m_windowTbl[window].close();	
+			core.getWindow(window).close();	
 		}
+	}
+
+	delete pkt;
+	if ( stream->rcvdAllPkts() ) {
+		delete stream;
 	}
 
 	if ( m_recvDmaBlockedEvent ) {
@@ -529,4 +607,5 @@ void RvmaNicSubComponent::processRecvPktFini( int destPid, int window, NetworkPk
 	} else {
 		m_recvDmaPending = false;
 	}
+
 }
