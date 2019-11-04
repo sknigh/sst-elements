@@ -35,7 +35,7 @@ RdmaMpiPt2PtLib::RdmaMpiPt2PtLib( Component* owner, Params& params) : MpiPt2Pt(o
 			params.find<uint32_t>("verboseMask",0), Output::STDOUT );
 
 	m_rqId = 0xF00D;
-    m_dbg.debug(CALL_INFO,1,2,"\n");
+    m_dbg.debug(CALL_INFO,1,1,"\n");
 
 	Params rdmaParams =  params.find_prefix_params("rdmaLib.");
 
@@ -46,7 +46,7 @@ RdmaMpiPt2PtLib::RdmaMpiPt2PtLib( Component* owner, Params& params) : MpiPt2Pt(o
 
 void RdmaMpiPt2PtLib::_init( int* numRanks, int* myRank, Hermes::Callback* callback ) {
 	
-	m_dbg.debug(CALL_INFO,1,2,"numRanks=%d myRank=%d\n",*numRanks,*myRank);
+	m_dbg.debug(CALL_INFO,1,1,"numRanks=%d myRank=%d\n",*numRanks,*myRank);
 	Callback* cb = new Callback( std::bind( &RdmaMpiPt2PtLib::mallocSendBuffers, this, callback, std::placeholders::_1 ) );
 	rdma().createRQ( m_rqId, cb ); 
 }
@@ -54,11 +54,11 @@ void RdmaMpiPt2PtLib::_init( int* numRanks, int* myRank, Hermes::Callback* callb
 void RdmaMpiPt2PtLib::_isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int dest, int tag,
 		Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request, Hermes::Callback* callback ) 
 {
-	m_dbg.debug(CALL_INFO,1,2,"buf=0x%" PRIx64 " count=%d dataSize=%d dest=%d tag=%d comm=%d\n",
+	m_dbg.debug(CALL_INFO,1,1,"buf=0x%" PRIx64 " count=%d dataSize=%d dest=%d tag=%d comm=%d\n",
 			buf.getSimVAddr(),count,Mpi::sizeofDataType( dataType ), dest, tag, comm );
 
 	Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
-		m_dbg.debug(CALL_INFO_LAMBDA,"isend",1,2,"returning\n");
+		m_dbg.debug(CALL_INFO_LAMBDA,"isend",1,1,"returning\n");
 		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
@@ -66,7 +66,7 @@ void RdmaMpiPt2PtLib::_isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes
 	entry->type = Hermes::Mpi::RequestData::Send;
 	*request = entry;
 
-	m_dbg.debug(CALL_INFO,1,2,"request=%p entry=%p\n",request,*request);
+	m_dbg.debug(CALL_INFO,1,1,"request=%p entry=%p\n",request,*request);
 
 	m_postedSends.push( entry );
 
@@ -87,11 +87,11 @@ void RdmaMpiPt2PtLib::_isend( const Hermes::Mpi::MemAddr& buf, int count, Hermes
 void RdmaMpiPt2PtLib::_irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int src, int tag,
 		Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request, Hermes::Callback* callback ) 
 {
-	m_dbg.debug(CALL_INFO,1,2,"buf=0x%" PRIx64 " count=%d dataSize=%d src=%d tag=%d comm=%d\n",
+	m_dbg.debug(CALL_INFO,1,1,"buf=0x%" PRIx64 " count=%d dataSize=%d src=%d tag=%d comm=%d\n",
 			buf.getSimVAddr(),count,Mpi::sizeofDataType( dataType ), src, tag, comm );
 
 	Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
-		m_dbg.debug(CALL_INFO_LAMBDA,"irecv",1,2,"returning\n");
+		m_dbg.debug(CALL_INFO_LAMBDA,"irecv",1,1,"returning\n");
 		m_selfLink->send(0,new SelfEvent(callback,retval) );
 	});	
 
@@ -99,16 +99,16 @@ void RdmaMpiPt2PtLib::_irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes
 	entry->type = Hermes::Mpi::RequestData::Recv;
 	*request = entry;
 
-	m_dbg.debug(CALL_INFO,1,2,"request=%p entry=%p\n",request,*request);
+	m_dbg.debug(CALL_INFO,1,1,"request=%p entry=%p\n",request,*request);
 
 	Hermes::RDMA::Status* status = checkUnexpected( entry );
 
 	if ( status ) {
-		m_dbg.debug(CALL_INFO,1,2,"found unexpected\n");
+		m_dbg.debug(CALL_INFO,1,1,"found unexpected\n");
 		processMatch( *status, entry, x );
 	} else { 
 
-		m_dbg.debug(CALL_INFO,1,2,"post recv\n");
+		m_dbg.debug(CALL_INFO,1,1,"post recv\n");
 		m_postedRecvs.push_back( entry );
 
 		size_t bytes = entry->count * Mpi::sizeofDataType( entry->dataType ); 
@@ -127,24 +127,24 @@ void RdmaMpiPt2PtLib::_irecv( const Hermes::Mpi::MemAddr& buf, int count, Hermes
 
 void RdmaMpiPt2PtLib::processTest( TestBase* waitEntry, int ) 
 {
-	m_dbg.debug(CALL_INFO,1,2,"\n");
+	m_dbg.debug(CALL_INFO,1,1,"\n");
    	if ( waitEntry->isDone() ) {
 
-		m_dbg.debug(CALL_INFO,1,2,"entry done\n");
+		m_dbg.debug(CALL_INFO,1,1,"entry done\n");
 		(*waitEntry->callback)(0);
 		delete waitEntry;
 
 	} else if ( waitEntry->blocking )  {
-		m_dbg.debug(CALL_INFO,1,2,"blocking\n");
+		m_dbg.debug(CALL_INFO,1,1,"blocking\n");
 		Callback* cb = new Callback( [=](int retval ){
-			m_dbg.debug(CALL_INFO_LAMBDA,"processTest",1,2,"return from blocking checkRQ %s\n",retval ? "message ready":"no message");
+			m_dbg.debug(CALL_INFO_LAMBDA,"processTest",1,1,"return from blocking checkRQ %s\n",retval ? "message ready":"no message");
 			assert( retval == 1 );
 		    Callback* cb = new Callback( std::bind( &RdmaMpiPt2PtLib::processTest, this, waitEntry, std::placeholders::_1 ) );
 			checkMsgAvail( cb, retval );
 		});
 		rdma().checkRQ( m_rqId, &m_rqStatus, true, cb );
 	} else {
-		m_dbg.debug(CALL_INFO,1,2,"entry not done\n");
+		m_dbg.debug(CALL_INFO,1,1,"entry not done\n");
 		(*waitEntry->callback)(0);
 		delete waitEntry;
 	}		
@@ -152,7 +152,7 @@ void RdmaMpiPt2PtLib::processTest( TestBase* waitEntry, int )
 
 void RdmaMpiPt2PtLib::makeProgress( Hermes::Callback* callback )
 {
-	m_dbg.debug(CALL_INFO,1,2,"\n");
+	m_dbg.debug(CALL_INFO,1,1,"\n");
 	Callback* cb = new Callback( std::bind( &RdmaMpiPt2PtLib::processSendQ, this, callback, std::placeholders::_1 ) );
 
 	processRecvQ( cb, 0 ); 
@@ -160,14 +160,14 @@ void RdmaMpiPt2PtLib::makeProgress( Hermes::Callback* callback )
 
 void RdmaMpiPt2PtLib::processRecvQ( Hermes::Callback* callback, int retval  )
 {
-	m_dbg.debug(CALL_INFO,1,2,"\n");
+	m_dbg.debug(CALL_INFO,1,1,"\n");
 	Callback* cb = new Callback( std::bind( &RdmaMpiPt2PtLib::checkMsgAvail, this, callback, std::placeholders::_1 ) );
 	rdma().checkRQ( m_rqId, &m_rqStatus, false, cb );
 }
 
 void RdmaMpiPt2PtLib::checkMsgAvail( Hermes::Callback* callback, int retval ) {
     if ( 1 == retval ) {
-    	m_dbg.debug(CALL_INFO,1,2,"message avail\n");
+		m_dbg.debug(CALL_INFO,1,1,"message avail\n");
 
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int) {
@@ -175,7 +175,7 @@ void RdmaMpiPt2PtLib::checkMsgAvail( Hermes::Callback* callback, int retval ) {
 		};
         processMsg( m_rqStatus, cb );
     } else { 
-    	m_dbg.debug(CALL_INFO,1,2,"no message\n");
+		m_dbg.debug(CALL_INFO,1,1,"no message\n");
 		(*callback)(0);
 		delete callback;
 	}
@@ -186,14 +186,17 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 	SendEntry* entry = dynamic_cast<SendEntry*>(_entry);
 	size_t bytes = entry->count * Mpi::sizeofDataType( entry->dataType ); 
 
-	MsgHdr* hdr = (MsgHdr*) m_sendBuff.getBacking();
+	entry->sendBuf = allocSendBuf(); 
+
+	MsgHdr* hdr = (MsgHdr*) entry->sendBuf->buf->getBacking();
+
 	hdr->srcRank = os().getMyRank(entry->comm);
 	hdr->tag = entry->tag;
 	hdr->count = entry->count;
 	hdr->dataType = entry->dataType;
 	hdr->comm = entry->comm;
 	hdr->type = MsgHdr::Match;
-	m_dbg.debug(CALL_INFO,1,2,"tag=%d rank=%d comm=%d count=%d type=%d\n",hdr->tag,hdr->srcRank,hdr->comm,hdr->count,hdr->type);
+	m_dbg.debug(CALL_INFO,1,1,"tag=%d rank=%d comm=%d count=%d type=%d\n",hdr->tag,hdr->srcRank,hdr->comm,hdr->count,hdr->type);
 
     Hermes::Callback* cb;
 
@@ -202,18 +205,19 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 	Hermes::ProcAddr procAddr = getProcAddr(_entry);
 
 	if ( bytes <= m_shortMsgLength ) {
-		m_dbg.debug(CALL_INFO,1,2,"short message\n");
+		m_dbg.debug(CALL_INFO,1,1,"short message\n");
 		if ( entry->buf.getBacking() ) {
 			void* payload = entry->buf.getBacking(); 
-			memcpy( m_sendBuff.getBacking(sizeof(MsgHdr)), payload, bytes ); 
+			memcpy( entry->sendBuf->buf->getBacking(sizeof(MsgHdr)), payload, bytes ); 
 		}	
+		m_dbg.debug(CALL_INFO,1,MPI_DBG_MASK_MSG_LVL1,"success, sent shortmsg to rank %d, bytes=%zu\n",entry->dest, bytes);
 		entry->doneFlag = true;
 		cb = callback;
 
 		delay = calcMemcpyLatency( bytes );
 
 	} else {
-		m_dbg.debug(CALL_INFO,1,2,"long message key=%p\n",entry);
+		m_dbg.debug(CALL_INFO,1,1,"long message key=%p\n",entry);
 
 		hdr->readAddr = entry->buf.getSimVAddr();
 		hdr->key = entry;
@@ -225,8 +229,8 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 		bytes = 0;
 	}
     Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
-		m_dbg.debug(CALL_INFO_LAMBDA,"processSendEntry",1,2," memcpy delay returning\n");
-		sendMsg( procAddr, m_sendBuff, sizeof(MsgHdr) + bytes, cb );
+		m_dbg.debug(CALL_INFO_LAMBDA,"processSendEntry",1,1," memcpy delay returning\n");
+		sendMsg( procAddr, *entry->sendBuf->buf, sizeof(MsgHdr) + bytes, &entry->sendBuf->handle, cb );
     });
 
     m_selfLink->send(delay,new SelfEvent(x) );
@@ -234,21 +238,21 @@ void RdmaMpiPt2PtLib::processSendEntry( Hermes::Callback* callback, SendEntryBas
 
 void RdmaMpiPt2PtLib::waitForLongAck( Hermes::Callback* callback, SendEntry* entry, int retval )
 {
-	 m_dbg.debug(CALL_INFO,1,2,"\n");
+	 m_dbg.debug(CALL_INFO,1,1,"\n");
 
 	Hermes::Callback* cb = new Hermes::Callback;
 	*cb = [=](int retval ){
 
-		m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"back from checkRQ\n");
+		m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,1,"back from checkRQ\n");
    		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int retval ){ 
-			m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"back from checkMsgAvail\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,1,"back from checkMsgAvail\n");
 			if ( entry->isDone() ) {
-				m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"long send done\n");
+				m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,1,"long send done\n");
 				(*callback)(0);
 				delete callback;				
 			} else {
-				m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,2,"call waitForLongAck again\n");
+				m_dbg.debug(CALL_INFO_LAMBDA,"waitForLongAck",1,1,"call waitForLongAck again\n");
 				waitForLongAck( callback, entry, 0 );
 			}
 		};
@@ -259,20 +263,22 @@ void RdmaMpiPt2PtLib::waitForLongAck( Hermes::Callback* callback, SendEntry* ent
 	rdma().checkRQ( m_rqId, &m_rqStatus, true, cb );
 }
 
-void RdmaMpiPt2PtLib::sendMsg( Hermes::ProcAddr procAddr, Hermes::MemAddr& addr, size_t length, Hermes::Callback* callback )
+void RdmaMpiPt2PtLib::sendMsg( Hermes::ProcAddr procAddr, const Hermes::MemAddr& addr, size_t length, int* handle, Hermes::Callback* callback )
 {
-	m_dbg.debug(CALL_INFO,1,2,"destNid=%d destPid=%d addr=0x%" PRIx64 "length=%zu\n",
+	m_dbg.debug(CALL_INFO,1,1,"destNid=%d destPid=%d addr=0x%" PRIx64 "length=%zu\n",
 				procAddr.node, procAddr.pid, addr.getSimVAddr(), length  );
-	rdma().send( procAddr, m_rqId, addr, length, callback );
+	rdma().send( procAddr, m_rqId, addr, length, handle, callback );
 }
 
 void RdmaMpiPt2PtLib::processMsg( Hermes::RDMA::Status& status, Hermes::Callback* callback ) {
-    m_dbg.debug(CALL_INFO,1,2,"got message from node=%d pid=%d \n",status.procAddr.node, status.procAddr.pid );
+    m_dbg.debug(CALL_INFO,1,1,"got message from node=%d pid=%d \n",status.procAddr.node, status.procAddr.pid );
 	
     MsgHdr* hdr = (MsgHdr*) status.addr.getBacking();
 	if( hdr->type == MsgHdr::Ack ) {
-		m_dbg.debug(CALL_INFO,1,2,"Ack key=%p\n",hdr->key);
+		m_dbg.debug(CALL_INFO,1,1,"Ack key=%p\n",hdr->key);
 		SendEntry* entry = (SendEntry*) hdr->key;
+		size_t bytes = entry->count * Mpi::sizeofDataType( entry->dataType ); 
+		m_dbg.debug(CALL_INFO,1,MPI_DBG_MASK_MSG_LVL1,"success, sent long  msg to rank %d, bytes=%zu\n",entry->dest, bytes);
 		entry->doneFlag = true;
 
 		repostRecvBuffer( status.addr, callback );
@@ -283,7 +289,7 @@ void RdmaMpiPt2PtLib::processMsg( Hermes::RDMA::Status& status, Hermes::Callback
 		if ( entry ) {
 			processMatch( status, entry, callback );
 		} else {
-			m_dbg.debug(CALL_INFO,1,2,"unexpected recv\n");
+			m_dbg.debug(CALL_INFO,1,1,"unexpected recv\n");
 
 			m_unexpectedRecvs.push_back( new Hermes::RDMA::Status(status) );
 
@@ -303,33 +309,37 @@ void RdmaMpiPt2PtLib::processMatch( const Hermes::RDMA::Status status, RecvEntry
 	entry->status.tag = hdr->tag; 
 	size_t bytes = entry->count * Mpi::sizeofDataType( entry->dataType ); 
 	if ( bytes <= m_shortMsgLength ) {
-		m_dbg.debug(CALL_INFO,1,2,"found posted short recv bytes=%zu\n",bytes);
+		m_dbg.debug(CALL_INFO,1,1,"found posted short recv bytes=%zu\n",bytes);
 		void* buf = entry->buf.getBacking();
 		if ( buf ) {  
 			void* payload = status.addr.getBacking(sizeof(MsgHdr)); 
 			memcpy( buf, payload, bytes ); 
 		}
+		m_dbg.debug(CALL_INFO,1,MPI_DBG_MASK_MSG_LVL1,"success, received short msg from rank %d, bytes=%zu\n",entry->src,bytes);
 		entry->doneFlag = true;
 
 		Hermes::Callback* x = new Hermes::Callback([=]( int retval ) {
-			m_dbg.debug(CALL_INFO_LAMBDA,"processMatch",1,2,"memcpy delay returning\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"processMatch",1,1,"memcpy delay returning\n");
 			repostRecvBuffer( status.addr, callback );
 		});
 
 		m_selfLink->send( calcMemcpyLatency( bytes ), new SelfEvent(x) );
 	} else {
 
-		m_dbg.debug(CALL_INFO,1,2,"found posted long recv bytes=%zu\n", bytes);
+		m_dbg.debug(CALL_INFO,1,1,"found posted long recv bytes=%zu\n", bytes);
 
 	    Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int retval ){
-			m_dbg.debug(CALL_INFO_LAMBDA,"processMsg",1,2,"back from read, send ACK\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"processMsg",1,1,"back from read, send ACK\n");
 
+			m_dbg.debug(CALL_INFO,1,MPI_DBG_MASK_MSG_LVL1,"success, received long msg from rank %d, bytes=%zu\n", entry->src, bytes );
 			entry->doneFlag = true;
 
 			Hermes::ProcAddr procAddr = status.procAddr;
 
-   			MsgHdr* ackHdr = (MsgHdr*) m_sendBuff.getBacking();
+			entry->sendBuf = allocSendBuf();
+			MsgHdr* ackHdr = (MsgHdr*) entry->sendBuf->buf->getBacking();
+
 			ackHdr->type = MsgHdr::Ack;
 			ackHdr->key = hdr->key; 
 	    	Hermes::Callback* cb = new Hermes::Callback;
@@ -337,7 +347,7 @@ void RdmaMpiPt2PtLib::processMatch( const Hermes::RDMA::Status status, RecvEntry
 				repostRecvBuffer( status.addr, callback );
 			};
 
-			sendMsg( procAddr, m_sendBuff, sizeof(MsgHdr), cb );
+			sendMsg( procAddr, *entry->sendBuf->buf, sizeof(MsgHdr), &entry->sendBuf->handle, cb );
 		};
 
 		rdma().read( status.procAddr, entry->buf, hdr->readAddr, bytes, cb );
@@ -359,7 +369,7 @@ Hermes::RDMA::Status* RdmaMpiPt2PtLib::checkUnexpected( RecvEntryBase* entry ) {
 
 void RdmaMpiPt2PtLib::postRecvBuffer( Hermes::Callback* callback, int count, int retval ) {
 
-    m_dbg.debug(CALL_INFO,1,2,"count=%d retval=%d rdId=%d\n",count,retval, m_rqId);
+    m_dbg.debug(CALL_INFO,1,1,"count=%d retval=%d rdId=%d\n",count,retval, m_rqId);
 
     --count;
     Hermes::Callback* cb = new Hermes::Callback;
@@ -374,7 +384,7 @@ void RdmaMpiPt2PtLib::postRecvBuffer( Hermes::Callback* callback, int count, int
 }
 
 void RdmaMpiPt2PtLib::repostRecvBuffer( Hermes::MemAddr addr, Hermes::Callback* callback ) {
-    m_dbg.debug(CALL_INFO,1,2,"rqId=%d\n",m_rqId);
+    m_dbg.debug(CALL_INFO,1,1,"rqId=%d\n",m_rqId);
 
    	size_t length = m_shortMsgLength + sizeof(MsgHdr);
    	rdma().postRecv( m_rqId, addr, length, NULL, callback );
