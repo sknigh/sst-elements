@@ -46,7 +46,7 @@ class Interface : public Hermes::Interface {
 	virtual ~Interface() {}
 	virtual void createRQ( RDMA::RqId, Callback* ) = 0;
 	virtual void postRecv( RDMA::RqId, Hermes::MemAddr&, size_t length, RDMA::RecvBufId*, Callback* ) = 0;
-	virtual void send( Hermes::ProcAddr, RDMA::RqId, Hermes::MemAddr& src, size_t length, Callback* ) = 0;
+	virtual void send( Hermes::ProcAddr, RDMA::RqId, const Hermes::MemAddr& src, size_t length, int* handle, Callback* ) = 0;
 	virtual void checkRQ( RDMA::RqId, RDMA::Status*, bool blocking, Callback* ) = 0;
 	virtual void registerMem( Hermes::MemAddr& addr, size_t length, MemRegionId*, Callback* ) = 0;
 	virtual void read( Hermes::ProcAddr, Hermes::MemAddr& destAddr, RDMA::Addr srcAddr, size_t length, Callback* ) = 0; 
