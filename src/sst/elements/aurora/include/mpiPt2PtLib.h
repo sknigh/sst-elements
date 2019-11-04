@@ -37,7 +37,8 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	{
 		m_shortMsgLength = params.find<size_t>("shortMsgLength",4096);
 		m_numRecvBuffers = params.find<int>("numRecvBuffers",32);
-		m_numSendBuffers = 1;
+		m_numSendBuffers = params.find<int>("numSendBuffers",32);
+		m_sendBuffList.resize( m_numSendBuffers ); 
 
     	std::ostringstream tmp;
     	tmp << this << "-AuroraMpiPt2PtLibSelfLink";
@@ -252,11 +253,16 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
         Hermes::Mpi::Comm comm;
     };
 
+	struct SendBuf {
+		int handle;
+		Hermes::MemAddr* buf;
+	};
+
     class Entry : public Hermes::Mpi::RequestData {
       public:
         Entry( const Hermes::Mpi::MemAddr& buf, int count, Hermes::Mpi::DataType dataType, int tag,
                 Hermes::Mpi::Comm comm, Hermes::Mpi::Request* request ) :
-            buf(buf), count(count), dataType(dataType), tag(tag), comm(comm), request(request), doneFlag(false)
+            buf(buf), count(count), dataType(dataType), tag(tag), comm(comm), request(request), doneFlag(false), sendBuf(NULL)
         { }
 
         Hermes::Mpi::Status status;
@@ -268,6 +274,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
         int tag;
         Hermes::Mpi::Comm comm;
         Hermes::Mpi::Request* request;
+        SendBuf* sendBuf;
     };
 
     class SendEntryBase : public Entry {
@@ -439,6 +446,14 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 		size_t length = m_numRecvBuffers *  ( m_shortMsgLength + sizeof(getMsgHdrSize()) );
 		m_dbg.debug(CALL_INFO,1,1,"length=%zu\n",length);
 
+		m_dbg.debug(CALL_INFO,1,1,"m_sendBuff vaddr=0x%" PRIx64 " backing=%p\n",m_sendBuff.getSimVAddr(), m_sendBuff.getBacking());
+		for ( int i = 0; i < m_numSendBuffers; i++ ) {
+			size_t offset = i * ( m_shortMsgLength + sizeof(getMsgHdrSize()) );
+			m_sendBuffList[i].buf = new Hermes::MemAddr( m_sendBuff.getSimVAddr(offset), m_sendBuff.getBacking(offset) );
+			m_dbg.debug(CALL_INFO,1,1,"m_sendBuff[%d] vaddr=0x%" PRIx64 " backing=%p\n", i, m_sendBuffList[i].buf->getSimVAddr(),  m_sendBuffList[i].buf->getBacking());
+			m_sendBuffList[i].handle = 1;
+		}
+
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = std::bind( &MpiPt2Pt::postRecvBuffer, this, callback, m_numRecvBuffers, std::placeholders::_1 );
 		misc().malloc( &m_recvBuff, length, true, cb );
@@ -496,7 +511,18 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	int m_numSendBuffers;
 
 	Hermes::MemAddr m_recvBuff;
-	Hermes::MemAddr m_sendBuff;
+
+	SendBuf* allocSendBuf() {
+
+		for ( int i = 0; i < m_sendBuffList.size(); i++ ) {
+			if ( 1 == m_sendBuffList[i].handle ) {
+				m_dbg.debug(CALL_INFO,1,1,"m_sendBuff[%d] vaddr=0x%" PRIx64 " backing=%p\n", i, m_sendBuffList[i].buf->getSimVAddr(),  m_sendBuffList[i].buf->getBacking() );
+				m_sendBuffList[i].handle = 0;
+				return &m_sendBuffList[i];
+			}
+		}
+		assert(0);
+	}
 
 	Hermes::Mpi::Request m_request;
 	Hermes::Mpi::Status  m_status;
@@ -517,8 +543,11 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	int m_memcpyLatency;
 
   private:
-    Host*   m_os;
+	Host*   m_os;
 	Hermes::Misc::Interface* m_misc;
+
+	Hermes::MemAddr m_sendBuff;
+	std::vector<SendBuf> m_sendBuffList;
 };
 
 }
