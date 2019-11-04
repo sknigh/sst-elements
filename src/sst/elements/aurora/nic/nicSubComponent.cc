@@ -49,7 +49,7 @@ NicSubComponent::NicSubComponent( ComponentId_t id, Params params ) : SubCompone
 void NicSubComponent::stopClocking( Cycle_t cycle ) {
 	assert( m_clocking == true );
 
-	m_dbg.debug(CALL_INFO,2,2,"stop clocking cycle %" PRIu64 " %s\n",cycle, 
+	m_dbg.debug(CALL_INFO,3,1,"stop clocking cycle %" PRIu64 " %s\n",cycle, 
 			getNetworkLink().requestToReceive( m_vc ) ? "pkt avail":"no pkt" );
 
 	m_nic->enableNetNotifier();
@@ -62,5 +62,5 @@ void NicSubComponent::startClocking() {
 	Cycle_t cycle = _startClocking();
 	m_totalIdleCycles += getNextClockCycle(m_timeConverter) - m_stopCycle;
 
-	m_dbg.debug(CALL_INFO,2,2,"start clocking cycle %" PRIu64 "\n",cycle);
+	m_dbg.debug(CALL_INFO,3,1,"start clocking cycle %" PRIu64 "\n",cycle);
 }

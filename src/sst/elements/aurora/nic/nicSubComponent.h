@@ -71,7 +71,7 @@ class NicSubComponent : public SubComponent {
 	static int getPktSize() { return m_pktSize; }
 
     void networkReady( int vc ) {
-        m_dbg.debug(CALL_INFO,2,2,"\n");
+        m_dbg.debug(CALL_INFO,3,1,"\n");
         _startClocking();
     }
 
