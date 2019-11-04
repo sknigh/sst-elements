@@ -25,6 +25,8 @@
 #include "collectives/tree.h" 
 #include "collectives/barrier.h" 
 
+#define CALL_INFO_LAMBDA     __LINE__, __FILE__
+
 namespace SST {
 namespace Aurora {
 
@@ -69,8 +71,9 @@ class MpiLib : public Hermes::MP::Interface
 		m_dbg.debug(CALL_INFO,1,1,"\n");
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int retval ) {
-			m_dbg.debug(CALL_INFO,1,1,"size=%d rank=%d\n",m_size,m_rank);
+			m_dbg.debug(CALL_INFO_LAMBDA,"init",1,1,"size=%d rank=%d\n",m_size,m_rank);
 			m_treeInfo = new Collectives::Tree( m_rank, m_size, 10, 8 );
+			m_dbg.debug(CALL_INFO_LAMBDA,"init",1,1,"returing to motif\n");
 			if ( (*functor)( retval ) ) {
         		delete functor;
 			}
@@ -84,6 +87,7 @@ class MpiLib : public Hermes::MP::Interface
 
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int retval ) {
+			m_dbg.debug(CALL_INFO_LAMBDA,"fini",1,1,"returing to motif\n");
 			if ( (*functor)( retval ) ) {
         		delete functor;
 			}
@@ -91,6 +95,7 @@ class MpiLib : public Hermes::MP::Interface
 
 		m_barrier->start( m_treeInfo, Mpi::CommWorld, cb );
 	}
+
 
 	void rank(MP::Communicator group, MP::RankID* rank, MP::Functor* functor) { 
 		m_dbg.debug(CALL_INFO,1,1,"rank=%d\n",m_rank);
@@ -107,6 +112,20 @@ class MpiLib : public Hermes::MP::Interface
 		m_selfLink->send(0,NULL);
    	}
 
+	void barrier(MP::Communicator group, MP::Functor* functor) {
+		m_dbg.debug(CALL_INFO,1,1,"enter\n");
+		Hermes::Callback* cb = new Hermes::Callback;
+		*cb = [=](int retval ) {
+			m_dbg.debug(CALL_INFO_LAMBDA,"barrier",1,1,"returing to motif\n");
+			if ( (*functor)( retval ) ) {
+				delete functor;
+			}
+		};
+
+		assert( group == MP::GroupWorld );
+		m_barrier->start( m_treeInfo, Mpi::CommWorld, cb );
+	}
+
 	int sizeofDataType( MP::PayloadDataType datatype ) { 
 		return Mpi::sizeofDataType(convertDataType(datatype) );
 	}
@@ -122,6 +141,7 @@ class MpiLib : public Hermes::MP::Interface
 	void irecv(const Hermes::MemAddr&, uint32_t count, MP::PayloadDataType dtype,
 			MP::RankID source, uint32_t tag, MP::Communicator group, MP::MessageRequest* req, MP::Functor*);
 
+	void wait( MP::MessageRequest req, MP::MessageResponse* resp, MP::Functor* );
 	void waitall( int count, MP::MessageRequest req[], MP::MessageResponse* resp[], MP::Functor* );
 
   private:
