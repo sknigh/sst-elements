@@ -195,7 +195,7 @@ void RdmaNicSubComponent::checkRQ( int coreNum, Event* event ) {
 	Core& core = m_coreTbl[coreNum];
     CheckRqCmd* cmd = static_cast<CheckRqCmd*>(event);
 
-    m_dbg.debug(CALL_INFO,1,2,"rqId=%d blocking=%d\n",(int)cmd->rqId,cmd->blocking);
+    m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"core %d rqId=%d blocking=%d\n",(int)cmd->rqId,cmd->blocking);
 
 	if ( core.validRqId( cmd->rqId ) ) {
 		
@@ -203,7 +203,7 @@ void RdmaNicSubComponent::checkRQ( int coreNum, Event* event ) {
 
 		bool retval = cmd->status->length != -1;
 		if ( ! cmd->blocking || retval ) {
-    		m_dbg.debug(CALL_INFO,1,2,"checkRqStatus %s\n",retval? "have message" : "no message");
+			m_dbg.debug(CALL_INFO,1,2,"checkRQ returning to host, checkRqStatus %s\n",retval? "have message" : "no message");
 			if ( retval ) {
 				sendResp( coreNum, new CheckRqResp( 1 ) );
 			} else {
@@ -266,7 +266,7 @@ bool RdmaNicSubComponent::processSendQ( Cycle_t cycle ) {
 
 	m_dbg.debug(CALL_INFO,3,SEND_DEBUG_MASK,"%d %d %d\n",! m_sendQ.empty(), m_sendPktsPending, m_pendingNetReq != NULL);
 
-	if ( m_sendQ.empty() || m_sendPktsPending  > 1 ) {
+	if ( m_sendQ.empty() || m_sendPktsPending  > 0 ) {
         return true;
     }
 	SendEntry& entry = *m_sendQ.front();
@@ -369,7 +369,8 @@ void RdmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry,
     SimpleNetwork::Request* req = makeNetReq( pkt, entry->getDestNode() );
 
     if ( lastPkt ) {
-        m_dbg.debug(CALL_INFO,2,1,"send entry DMA's done\n");
+        m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL1,"success, sent to node %d pid %d, bytes=%zu\n", 
+			entry->getDestNode(), entry->destPid(), entry->length() );
         int srcCore = entry->getSrcCore();
         delete entry;
     }
@@ -468,7 +469,7 @@ void RdmaNicSubComponent::processRecvPktStart( SelfEvent* e )
 void RdmaNicSubComponent::processRecvPktFini( SelfEvent* event )
 {
 	NetworkPkt* pkt = event->pkt;
-	m_dbg.debug(CALL_INFO,2,RECV_DEBUG_MASK,"pkt is protocol %s\n",protoNames[pkt->getProto()]);
+	m_dbg.debug(CALL_INFO,1,1,"pkt is protocol %s\n",protoNames[pkt->getProto()]);
 
 	--m_recvPktsPending;
 
@@ -560,10 +561,11 @@ void RdmaNicSubComponent::processMsgPktFini( RecvBuf* buffer, NetworkPkt* pkt, s
 
 		if ( buffer->isComplete() ) {
 
-			m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "buffer is complete\n");
+			m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, NIC_DBG_MASK_MSG_LVL1, "success, received msg from node %d pid %d, bytes=%zu\n",
+					pkt->getSrcNid(), pkt->getSrcPid(), length );
 			if ( core.m_checkRqCmd && core.m_checkRqCmd->status == buffer->status() ) {
 
-				m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, RECV_DEBUG_MASK, "wake up checkRQ\n");
+				m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, NIC_DBG_MASK_MSG_LVL2, "checkRq returing to host\n");
 				sendResp( destPid, new CheckRqResp( 1 ) );
 				delete core.m_checkRqCmd;
 				core.m_checkRqCmd = NULL;
