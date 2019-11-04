@@ -37,7 +37,7 @@ public:
 
     void issue( uint64_t time, RVMA::Callback* callback ) {
         EmberEvent::issue( time );
-        m_api.put( m_srcAddr, m_size, m_destProc, m_virtAddr, m_offset, m_completion, callback );
+        m_api.put( m_srcAddr, m_size, m_destProc, m_virtAddr, m_offset, m_completion, NULL, callback );
     }
 
 private:
