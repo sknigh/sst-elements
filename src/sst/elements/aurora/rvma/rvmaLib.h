@@ -111,12 +111,12 @@ class RvmaLib : public HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >
 		doEnter( cmd, callback );
 	}
 
-    void put( Hermes::MemAddr srcAddr, size_t size, Hermes::ProcAddr dest, Hermes::RVMA::VirtAddr virtAddr,
-		   						size_t offset, Hermes::RVMA::Completion* comp, Hermes::Callback* callback )
+    void put( const Hermes::MemAddr& srcAddr, size_t size, Hermes::ProcAddr dest, Hermes::RVMA::VirtAddr virtAddr,
+				size_t offset, Hermes::RVMA::Completion* comp, int* handle, Hermes::Callback* callback )
 	{
 		dbg().debug(CALL_INFO,1,2,"size=%zu destNode=%d destPid=%d virtAddr=0x%" PRIx64 " offset=%zu\n",
                         size, dest.node, dest.pid, virtAddr, offset );
-    	NicCmd* cmd = new PutCmd( srcAddr, size, dest, virtAddr, offset, comp );
+		NicCmd* cmd = new PutCmd( srcAddr, size, dest, virtAddr, offset, comp, handle );
 		setRetvalCallback();
 		doEnter( cmd, callback );
 	}
