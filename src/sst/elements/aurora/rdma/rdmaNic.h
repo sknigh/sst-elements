@@ -128,7 +128,12 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	class MsgSendEntry : public SendEntry {
 	  public:
 		MsgSendEntry( int id, int srcCore, SendCmd* cmd ) : SendEntry( id, srcCore, cmd->length ), cmd( cmd ) { }	
-		~MsgSendEntry() { delete cmd; }
+		~MsgSendEntry() {
+			if ( cmd->handle ) {
+				*cmd->handle = 1;
+			}
+			delete cmd;
+		}
 
 		int getDestNode() { return cmd->proc.node; }
 		int destPid() { return cmd->proc.pid; }
@@ -436,10 +441,9 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 	static const char *m_cmdName[];
 
-	int m_vc;
 	std::deque< SendEntry* > m_sendQ;
 
-	int m_streamIdCnt;
+	StreamId m_streamIdCnt;
 
     int m_sendPktsPending;
     int m_recvPktsPending;
