@@ -70,10 +70,10 @@ class RdmaLib : public HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >
 		doEnter( new PostRecvCmd( rqId, addr, length, status ), callback );
 	}
 
-    void send( Hermes::ProcAddr proc, Hermes::RDMA::RqId rqId, Hermes::MemAddr& src, size_t length, Hermes::Callback* callback ) {
+    void send( Hermes::ProcAddr proc, Hermes::RDMA::RqId rqId, const Hermes::MemAddr& src, size_t length, int* handle, Hermes::Callback* callback ) {
 		dbg().debug(CALL_INFO,1,2,"\n");
 		setRetvalCallback();	
-    	doEnter( new SendCmd( proc, rqId, src, length ), callback );
+		doEnter( new SendCmd( proc, rqId, src, length, handle ), callback );
 	}
 
     void checkRQ( Hermes::RDMA::RqId rqId, Hermes::RDMA::Status* status, bool blocking, Hermes::Callback* callback ) {
