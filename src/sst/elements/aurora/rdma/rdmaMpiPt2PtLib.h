@@ -101,7 +101,7 @@ class RdmaMpiPt2PtLib : public MpiPt2Pt
 
 	void processTest( TestBase*, int retval );
 	void processMsg( Hermes::RDMA::Status&, Hermes::Callback* );
-	void sendMsg( Hermes::ProcAddr, Hermes::MemAddr&, size_t length, Hermes::Callback* );
+	void sendMsg( Hermes::ProcAddr, const Hermes::MemAddr&, size_t length, int* handle, Hermes::Callback* );
 	void postRecvBuffer( Hermes::Callback*, int count, int retval );
 	void repostRecvBuffer( Hermes::MemAddr, Hermes::Callback* );
 	void processRecvQ(Hermes::Callback*, int );
