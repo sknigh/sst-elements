@@ -56,43 +56,30 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 	class Buffer {
 	  public:
-		Buffer ( Hermes::RVMA::EpochType type, size_t threshold, Hermes::MemAddr addr, size_t size, Hermes::RVMA::Completion* completion ) : 
-			m_epochType(type), epochThreshold(threshold), addr(addr), maxSize(size), completion(completion), bytesRcvd(0), epochCount(0)
-		{
-			printf("%p\n",this);
-			//printf("%s() this=%p maxSize=%zu completion=%p\n",__func__,this,size,completion);
-		}
+		Buffer ( Hermes::MemAddr addr, size_t size, Hermes::RVMA::Completion* completion ) :
+			addr(addr), maxSize(size), completion(completion), bytesRcvd(0), epochCount(0)
+		{ }
 
 		void copy( void* ptr, size_t offset, size_t length ) {
-			//printf("%s() this=%p offset=%zu length=%zu maxSize=%zu\n",__func__,this,offset,length,maxSize);
 			if( offset + length > maxSize ) {
-				printf("offset-%zu length=%zu maxSize=%zu\n",offset,length,maxSize);
 				assert(0);
 			}
 			if ( addr.getBacking() ) {
 				memcpy( addr.getBacking(offset), ptr, length);
 			}
 			bytesRcvd += length;
-
-			if ( isEndOfEpoch() ) {
-				endEpoch();
-			}
 		}
 
 		void incEpochCount( size_t length ) {
-			if ( m_epochType == Hermes::RVMA::Op ) {
-				++epochCount;
-			} else {
-				epochCount += length;
-			}
-			//printf("%s() epochCount=%zu\n",__func__,epochCount);
+			epochCount += length;
 		}
 
-		bool isEndOfEpoch() {
-			return epochThreshold == epochCount;
+		bool isComplete() {
+			return getCompletion()->count > 0;
 		}
 
 		void endEpoch() {
+			assert( getCompletion()->count == 0 );
 			getCompletion()->count = epochCount;
 			getCompletion()->addr = getAddr();
 		}
@@ -103,30 +90,35 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		Hermes::MemAddr& getAddr() { return addr; }
 
 	  private:
-		Hermes::RVMA::EpochType m_epochType;
-		size_t epochThreshold;
-		size_t epochCount;
-
 		Hermes::MemAddr addr;
 		Hermes::RVMA::Completion* completion;
 		size_t maxSize;
 		size_t bytesRcvd;
+		size_t epochCount;
 	};
 
+	class Window;
 	class RecvStream {
 	  public:
-		RecvStream( int window, Buffer* buffer, size_t length ) : m_window(window),
-				m_buffer(buffer), m_length(length), m_numRcvdPkts(0), m_numTotalPkts(0) {}
-		void setNumPkts( int num ) { m_numTotalPkts = num; }
+		RecvStream( Window* window, Buffer* buffer, size_t length, int numPkts ) : m_window(window),
+				m_buffer(buffer), m_length(length), m_numTotalPkts(numPkts), m_numRcvdPkts(0) {}
+
 		void recv( void* ptr, size_t offset, size_t length ) {
 			m_buffer->copy( ptr, offset, length ); 
+
+			if ( isFinished() && m_window->isEndOfEpoch( m_buffer ) ) {
+				m_buffer->endEpoch();
+			}
 		}
 		Buffer& buffer() { return *m_buffer; }
-		int getWindowNum() { return m_window; }
-		int incRcvdPkts() { ++ m_numRcvdPkts; }
+		Window* getWindow() { return m_window; }
+		int incRcvdPkts() { 
+			++m_numRcvdPkts; 
+		}
+		bool isFinished() { return m_buffer->getBytesRcvd() == m_length; }
 		bool rcvdAllPkts() { return m_numTotalPkts == m_numRcvdPkts; }
 	  private:
-		int m_window;
+		Window* m_window;
 		size_t m_length;
 		int m_numRcvdPkts;
 		int m_numTotalPkts;
@@ -189,7 +181,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 	class Window {
 	  public:
-		Window( ) : m_active(false) {}
+		Window( ) : m_active(false), m_oneTimeBuffer(NULL) {}
 		void setActive( Hermes::RVMA::VirtAddr addr, size_t threshold, Hermes::RVMA::EpochType type, bool oneTime = false ) {
 			m_active = true; 
 			m_addr = addr;
@@ -217,7 +209,23 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 				delete m_availBuffers.front();
 				m_availBuffers.pop_front();
 			}
+			if ( m_oneTimeBuffer ) {
+				delete m_oneTimeBuffer;
+				m_oneTimeBuffer = NULL;
+			}
 			m_active = false;
+		}
+
+		bool isEndOfEpoch(Buffer* buffer) {
+			return buffer->getEpochCount() == m_threshold;
+		}
+
+		void incEpochCount( Buffer* buffer, size_t length ) {
+			if ( m_epochType == Hermes::RVMA::Op ) {
+				buffer->incEpochCount(1);
+			} else {
+				buffer->incEpochCount(length);
+			}
 		}
 
 		Buffer* getActiveBuffer( size_t length ) {
@@ -228,9 +236,9 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 			Buffer* buffer = m_availBuffers.front();
 
 			// note we inc the epoch count here so any new active buffer requests go to the next buffer
-			buffer->incEpochCount(length);
+			incEpochCount( buffer, length );
 
-			if ( buffer->isEndOfEpoch() ) {
+			if ( isEndOfEpoch( buffer ) ) {
 				switchActiveBuffer();
 			}
 
@@ -241,6 +249,8 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 
 			// if one time buffer this window will go away so we don't need to switch to next active buffer 
 			if ( isOneTime() ) {
+				m_oneTimeBuffer = m_availBuffers.front();
+				m_availBuffers.pop_front();
 				return;
 			}
 
@@ -289,7 +299,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 			for ( iter = m_usedBuffers.begin(); iter != m_usedBuffers.end(); ++iter ) {
 				if ( (*iter)->getAddr().getSimVAddr() == addr.getSimVAddr() ) {
 					m_usedBuffers.erase(iter);
-					m_availBuffers.push_back( new Buffer( m_epochType, m_threshold, addr, size, completion) );
+					m_availBuffers.push_back( new Buffer( addr, size, completion) );
 					return 0;
 				}
 			}
@@ -298,7 +308,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 					return -1;
 				}
 			}
-			m_availBuffers.push_back( new Buffer( m_epochType, m_threshold, addr, size, completion) );
+			m_availBuffers.push_back( new Buffer( addr, size, completion) );
 			return 0;
 		}
 		Hermes::RVMA::VirtAddr getWinAddr() { return m_addr; }
@@ -315,6 +325,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		Hermes::RVMA::EpochType m_epochType;
 		std::deque<Buffer*> m_availBuffers;
 		std::deque<Buffer*> m_usedBuffers;
+		Buffer* m_oneTimeBuffer;
 	};
 
   private:
@@ -350,14 +361,14 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 	  public:
 		Core() : m_mwaitCmd(NULL) {}
 
-		RecvStream* createRecvStream( Hermes::RVMA::VirtAddr winAddr, size_t length ) {
+		RecvStream* createRecvStream( Hermes::RVMA::VirtAddr winAddr, size_t length, int numPkts ) {
 
 			for ( int i = 0; i < m_windowTbl.size(); i++ ) {
 				if ( m_windowTbl[i].isActive() ) {
 					if ( m_windowTbl[i].checkWinAddr( winAddr ) ) {
 						Buffer* buffer = m_windowTbl[i].getActiveBuffer( length );
 						assert( buffer );
-						return new RecvStream( i, buffer, length );
+						return new RecvStream( &m_windowTbl[i], buffer, length, numPkts );
 					}
 				}	
 			}
@@ -365,7 +376,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		}
 
 		uint64_t genKey( int srcNid, uint16_t srcPid, StreamId streamId ) {
-			return (uint64_t) srcNid << 32 | srcPid << 16 | streamId ;
+			return (uint64_t) srcNid << 32 | srcPid << 16 | streamId & 0xffff ;
 		}
 
 		bool activeRecvStream( int srcNid, int srcPid, StreamId streamId ) {

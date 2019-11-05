@@ -501,7 +501,7 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 
 	if ( pkt->isHead() ) {
 
-		if ( core.activeRecvStream(srcNid, srcPid, streamId ) ) {
+		if ( core.activeRecvStream( srcNid, srcPid, streamId ) ) {
 			m_dbg.fatal(CALL_INFO,-1,"node %d, got a head packet for curretnly active stream from nid=%d pid=%d\n", srcNid, srcPid );
 		} 
 
@@ -515,15 +515,13 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 		m_dbg.debug(CALL_INFO,2,1,"head pkt from srcNid=%d srcPid=%d for core=%d rvmaAddr=0x%" PRIx64 " length=%zu\n",
 			srcNid, srcPid, pkt->getDestPid(), rvmaAddr, length );
 
-		stream = core.createRecvStream( rvmaAddr, length );
+		stream = core.createRecvStream( rvmaAddr, length, numPkts );
 
 		if ( NULL == stream ) {
 			m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find buffer for virtaddr 0x%" PRIx64 "\n", getNodeNum(), rvmaAddr);
 		} else {
 			m_dbg.debug(CALL_INFO,2,1,"found buffer for virtAddr 0x%" PRIx64 "\n",rvmaAddr);
 		}
-
-		stream->setNumPkts(numPkts);
 
 		core.setActiveRecvStream( srcNid, srcPid, streamId, stream );
 	} else {
@@ -570,7 +568,7 @@ void RvmaNicSubComponent::processRecvPktFini( int destPid, RecvStream* stream, N
 	--m_recvPktsPending;
 
 	Buffer& buffer = stream->buffer();
-	if ( stream->rcvdAllPkts() && buffer.isEndOfEpoch() ) { 
+	if ( buffer.isComplete() ) {
 
 		Hermes::RVMA::Completion* completion = buffer.getCompletion();
 
@@ -589,15 +587,15 @@ void RvmaNicSubComponent::processRecvPktFini( int destPid, RecvStream* stream, N
 			}
 		}
 
-		int window = stream->getWindowNum();
-		if ( core.getWindow(window).isOneTime() ) {
-			m_dbg.debug(CALL_INFO,2,1,"close windowSlot=%d\n",window);
-			core.getWindow(window).close();	
+		Window* window = stream->getWindow();
+		if ( window->isOneTime() ) {
+			m_dbg.debug(CALL_INFO,2,1,"close window\n");
+			window->close();
 		}
 	}
 
 	delete pkt;
-	if ( stream->rcvdAllPkts() ) {
+	if ( stream->isFinished() ) {
 		delete stream;
 	}
 
