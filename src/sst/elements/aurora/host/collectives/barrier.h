@@ -27,7 +27,7 @@ namespace Collectives {
 
 class Barrier : public Base {
   public:
-    Barrier( Mpi::Interface& api ) : Base( api ), m_tag( -10 ) {}
+    Barrier( Mpi::Interface& api ) : Base( api ), m_tag( 0xdead ), m_seq(0) {}
 	inline void start( Tree* tree, Hermes::Mpi::Comm comm, Hermes::Callback* callback );
 	inline void leaf() ;
 	inline void sendDown( int );
@@ -40,12 +40,15 @@ class Barrier : public Base {
 	Hermes::Mpi::Comm m_comm;
 	std::vector<Hermes::Mpi::Request> m_request;
 	std::vector<Hermes::Mpi::Status> m_status;
+	int genTag( ) { return (m_tag << 16) | m_seq; } 
 	int m_tag;
+	uint16_t m_seq;
 	int m_flag;
 };
 
 void Barrier::start( Tree* tree, Hermes::Mpi::Comm comm, Hermes::Callback* callback )
 {
+	++m_seq;
 	m_tree = tree;
 	m_callback = callback;
 	m_comm = comm;
@@ -72,7 +75,7 @@ void Barrier::sendDown( int count ) {
 	} else {
 		cb = m_callback;
 	} 
-	api().send( addr ,0, Mpi::Char, m_tree->children(count), m_tag, m_comm, cb ); 
+	api().send( addr ,0, Mpi::Char, m_tree->children(count), genTag(), m_comm, cb ); 
 }
 
 void Barrier::postUp( int count ) {
@@ -89,7 +92,7 @@ void Barrier::postUp( int count ) {
 			waitUp();
 		};
 	} 
-	api().irecv( addr ,0, Mpi::Char, m_tree->children(count), m_tag, m_comm, &m_request[count], cb ); 
+	api().irecv( addr ,0, Mpi::Char, m_tree->children(count), genTag(), m_comm, &m_request[count], cb ); 
 }
 
 void Barrier::waitUp( ) {
@@ -101,10 +104,16 @@ void Barrier::waitUp( ) {
 		} else {
     		Hermes::Callback* cb = new Hermes::Callback;
     		*cb = [=](int retval) {
-				sendDown( m_tree->numChildren() );
+				Hermes::MemAddr addr;
+    			Hermes::Callback* cb = new Hermes::Callback;
+    			*cb = [=](int retval) {
+					sendDown( m_tree->numChildren() );
+				};
+				api().recv( addr ,0, Mpi::Char, m_tree->parent(), genTag(), m_comm, &m_status[0], cb ); 
 			};
+
 			Hermes::MemAddr addr;
-			api().send( addr ,0, Mpi::Char, m_tree->parent(), m_tag, m_comm, cb ); 
+			api().send( addr ,0, Mpi::Char, m_tree->parent(), genTag(), m_comm, cb ); 
 		} 	
 	};
 
@@ -118,11 +127,11 @@ void Barrier::leaf( ) {
     Hermes::Callback* cb = new Hermes::Callback;
     *cb = [=](int retval ) {
 		// get response from parent;
-		api().recv( addr ,0, Mpi::Char, m_tree->parent(), m_tag, m_comm, &m_status[0], m_callback ); 
+		api().recv( addr ,0, Mpi::Char, m_tree->parent(), genTag(), m_comm, &m_status[0], m_callback ); 
     };
 
 	// send to parrent
-	api().send( addr ,0,Mpi::Char, m_tree->parent(), m_tag, m_comm, cb ); 
+	api().send( addr ,0,Mpi::Char, m_tree->parent(), genTag(), m_comm, cb ); 
 }
 
 }
