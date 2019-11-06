@@ -27,8 +27,8 @@
 #include "include/networkPkt.h"
 
 #define SEND_DEBUG_MASK (1<<0)
-#define RECV_DEBUG_MASK (1<<1)
-#define EVENT_DEBUG_MASK (1<<2)
+#define RECV_DEBUG_MASK (1<<0)
+#define EVENT_DEBUG_MASK (1<<0)
 
 namespace SST {
 namespace Aurora {
@@ -37,6 +37,10 @@ namespace RDMA {
 class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 	static const char* protoNames[];
+
+	static StreamId genKey( int srcNid, uint16_t srcPid, StreamId streamId ) {
+		return (uint64_t) srcNid << 32 | srcPid << 16 | streamId & 0xffff ;
+	}
 
   public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
@@ -79,7 +83,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	  public:
 
 	  	SendEntry( int id, int srcCore, size_t length ) : m_streamId(id), m_srcCore(srcCore),
-			m_length(length), m_currentOffset(0), m_completedDMAs(0), m_finiCallback(NULL)  
+			m_length(length), m_currentOffset(0), m_completedDMAs(0), m_finiCallback(NULL), m_pktNum(0)  
 		{
 			m_totalDMAs = length / RdmaNicSubComponent::getPktSize();
 			if ( length % RdmaNicSubComponent::getPktSize() ) { 
@@ -96,6 +100,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		Callback* m_finiCallback;
 		void setCallback( Callback* callback  ) { m_finiCallback = callback; }
 
+		int getIncPktNum() { return m_pktNum++; }
 		void incCompletedDMAs() { ++m_completedDMAs; }
 		void decRemainingBytes( int num ) { m_currentOffset += num; }
 		bool done() { return m_totalDMAs == m_completedDMAs; }
@@ -123,6 +128,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		int	m_srcCore;
 		int m_length;
 		int m_streamId;
+		int m_pktNum;
 	};
 
 	class MsgSendEntry : public SendEntry {
@@ -210,9 +216,11 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 	class RdmaRecvEntry { 
 	  public:
-		RdmaRecvEntry( Hermes::MemAddr& addr, size_t length, bool isReadResp = false ) :
-			m_addr(addr), m_length(length), m_bytesRecvd(0), m_isReadResp(isReadResp) {} 
+		RdmaRecvEntry( Hermes::MemAddr& addr, int numPkts, size_t length, bool isReadResp = false ) :
+			m_addr(addr), m_numPkts(numPkts), m_length(length), m_rcvdPkts(0), m_bytesRecvd(0), m_isReadResp(isReadResp) {} 
 
+		void incRcvdPkts() { ++m_rcvdPkts; }
+		bool rcvdAllPkts() { return m_rcvdPkts == m_numPkts; }
 
 		bool recv( void* ptr, uint32_t offset, size_t length ) {
 			uint8_t* backing = (uint8_t*) m_addr.getBacking();
@@ -224,8 +232,11 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			return ( m_bytesRecvd == m_length );
 		}
 		bool isReadResp() { return m_isReadResp; }
+		size_t length() { return m_length; }
 
 	  private:
+		int m_numPkts;
+		int m_rcvdPkts;
         Hermes::MemAddr m_addr;
         size_t m_length;
 		size_t m_bytesRecvd;
@@ -245,11 +256,12 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			Event(), type(TxDmaDone), pkt(pkt), sendEntry(entry), lastPkt(lastPkt) {}
 
         SelfEvent( NetworkPkt* pkt ) : Event(), type(RxLatency), pkt(pkt) {}
-		SelfEvent( NetworkPkt* pkt, size_t length ) : Event(), type(RxDmaDone), pkt(pkt), length(length) {} 
-		SelfEvent( NetworkPkt* pkt, RecvBuf* buffer, size_t length ) : Event(), type(RxDmaDone), pkt(pkt), buffer(buffer), length(length) {} 
+		SelfEvent( NetworkPkt* pkt, RdmaRecvEntry* buffer, size_t length ) : Event(), type(RxDmaDone), pkt(pkt), rdmaBuf(buffer), length(length) {} 
+		SelfEvent( NetworkPkt* pkt, RecvBuf* buffer, size_t length ) : Event(), type(RxDmaDone), pkt(pkt), msgBuf(buffer), length(length) {} 
 			
         NetworkPkt*	pkt;
-		RecvBuf*	buffer;
+		RdmaRecvEntry*	rdmaBuf;
+		RecvBuf*		msgBuf;
         SendEntry*	sendEntry;
         size_t		length;
         bool		lastPkt;
@@ -259,12 +271,14 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 	class RecvBuf {
 	  public:
-		RecvBuf( PostRecvCmd* cmd ) : cmd(cmd), m_offset(0) { 
+		RecvBuf( PostRecvCmd* cmd ) : cmd(cmd), m_offset(0), m_curPkt(0), m_numRcvdPkts(0) { 
 			//printf("RecvBuf::%s() this=%p\n",__func__,this);
 		}
 		~RecvBuf() { delete cmd; }
 
-		bool isLastPkt( size_t length ) { return m_offset + length == m_recvLength; }  
+		void setTotalPkts( int num ) { m_totalPkts = num; }
+		void incRcvdPkts() { ++m_numRcvdPkts; }
+		bool haveAllPkts( ) { return m_totalPkts == m_numRcvdPkts; }  
 
 		bool recv( void* ptr, size_t length ) {
 			unsigned char* buf = (unsigned char* )cmd->addr.getBacking();
@@ -288,6 +302,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		}
 
 		bool isComplete() { return ( m_offset == m_recvLength );  }
+		size_t numRcvdBytes() { return m_offset; }
 		void setRqId( Hermes::RDMA::RqId rqId ) { m_rqId = rqId; }
 		void setRecvLength( size_t length ) { m_recvLength = length; }
 		void setProc( int nid, int pid ) { m_proc.node = nid; m_proc.pid = pid;}
@@ -303,6 +318,9 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		size_t m_recvLength;
 		Hermes::RDMA::RqId m_rqId;
 		Hermes::ProcAddr m_proc;
+		int m_numRcvdPkts;
+		int m_curPkt;
+		int m_totalPkts;
 	};
 
 	struct Core {
@@ -335,25 +353,25 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			return m_rqs.find(rqId) != m_rqs.end();
 		}	
 
-		bool activeStream( int srcNid, int srcPid ) {
-			uint64_t key = genKey( srcNid, srcPid );
+		bool activeStream( int srcNid, int srcPid, StreamId id ) {
+			StreamId key = genKey( srcNid, srcPid, id );
 			return m_activeStreams.find(key) != m_activeStreams.end();
 		}
 
-		void setActiveBuf( int srcNid, int srcPid, RecvBuf* buf ) {
-			assert( ! activeStream( srcNid, srcPid ) );
-			uint64_t key = genKey( srcNid, srcPid );
+		void setActiveBuf( int srcNid, int srcPid, StreamId id, RecvBuf* buf ) {
+			assert( ! activeStream( srcNid, srcPid, id ) );
+			StreamId key = genKey( srcNid, srcPid, id );
 			m_activeStreams[key] = buf;
 		}	
 
-		void clearActiveStream( int srcNid, int srcPid ) {
-			assert( activeStream( srcNid, srcPid ) );
-			uint64_t key = genKey( srcNid, srcPid );
+		void clearActiveStream( int srcNid, int srcPid, StreamId id ) {
+			assert( activeStream( srcNid, srcPid, id ) );
+			StreamId key = genKey( srcNid, srcPid, id );
 			m_activeStreams.erase(key);
 		}	
 
-		RecvBuf* findActiveBuf( int srcNid, int srcPid ) {
-			uint64_t key = genKey( srcNid, srcPid );
+		RecvBuf* findActiveBuf( int srcNid, int srcPid, StreamId id ) {
+			StreamId key = genKey( srcNid, srcPid, id );
 			
 			streamMap_t::iterator iter = m_activeStreams.find(key);
 
@@ -363,10 +381,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			}
 
 			return buf;
-		}
-
-		uint64_t genKey( int srcNid, int srcPid ) {
-			return (uint64_t) srcNid << 32 | srcPid;
 		}
 
 		bool findMemAddr( Hermes::RDMA::Addr addr, size_t length, Hermes::MemAddr& memAddr ) {
@@ -387,8 +401,8 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		}
 
 		typedef std::map<Hermes::RDMA::RqId, std::deque<RecvBuf*> > recvBufMap_t;
-		typedef std::map<uint64_t,RecvBuf*>  streamMap_t;
-		typedef std::map<int,RdmaRecvEntry*>  rdmaRecvMap_t;
+		typedef std::map<StreamId,RecvBuf*>  streamMap_t;
+		typedef std::map<StreamId,RdmaRecvEntry*>  rdmaRecvMap_t;
 
 		struct MemRegion {
 			Hermes::MemAddr addr;
@@ -424,7 +438,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	void processRdmaReadPkt( NetworkPkt* );
 
 	SelfEvent* processRdmaWritePktStart( NetworkPkt* );
-	void processRdmaWritePktFini( NetworkPkt* );
+	void processRdmaWritePktFini( NetworkPkt*, RdmaRecvEntry* );
 
 	SelfEvent* processMsgPktStart( NetworkPkt* );
 	void processMsgPktFini( RecvBuf* buffer, NetworkPkt* pkt, size_t length );
