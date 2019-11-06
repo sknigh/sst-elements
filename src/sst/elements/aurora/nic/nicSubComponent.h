@@ -100,6 +100,28 @@ class NicSubComponent : public SubComponent {
         return reregisterClock( m_timeConverter, m_clockHandler );
     }
 
+	int calcNumPkts( size_t hdrSize, size_t eachPktHdrSize, size_t payloadLength, int pktSize )
+	{
+		int numPkts = payloadLength / pktSize;
+
+        if ( payloadLength % pktSize ) {
+            ++numPkts;
+        }
+
+        size_t streamLength = hdrSize + numPkts * sizeof( eachPktHdrSize ) + payloadLength;
+
+        numPkts =  streamLength / pktSize;
+
+        if ( streamLength % pktSize ) {
+            if ( (streamLength + eachPktHdrSize) / pktSize == numPkts ) {
+                ++numPkts;
+            } else {
+                numPkts+=2;
+            }
+        }
+		return numPkts;
+	}
+
 	TimeConverter* m_timeConverter;	
 
 	Link*	m_selfLink;
