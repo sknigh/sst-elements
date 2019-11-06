@@ -401,10 +401,10 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	bool checkMatch( MsgHdrBase* hdr, RecvEntryBase* entry )
 	{
-		m_dbg.debug(CALL_INFO,1,1,"hdr tag=%d src=%d comm=%d count=%d datatype=%d\n",hdr->tag,hdr->srcRank,hdr->comm,hdr->count,hdr->dataType);
-		m_dbg.debug(CALL_INFO,1,1,"entry tag=%d src=%d comm=%d count=%d datatype=%d\n",entry->tag,entry->src,entry->comm,entry->count,entry->dataType);
+		m_dbg.debug(CALL_INFO,1,1,"hdr tag=%#x,%d src=%d comm=%d count=%d datatype=%d\n",hdr->tag,hdr->tag,hdr->srcRank,hdr->comm,hdr->count,hdr->dataType);
+		m_dbg.debug(CALL_INFO,1,1,"entry tag=%#x,%d src=%d comm=%d count=%d datatype=%d\n",entry->tag,entry->tag,entry->src,entry->comm,entry->count,entry->dataType);
 		if ( entry->tag != Hermes::Mpi::AnyTag && entry->tag != hdr->tag ) {
-			m_dbg.debug(CALL_INFO,1,1,"tag no match posted=%d %d\n",entry->tag,hdr->tag);
+			m_dbg.debug(CALL_INFO,1,1,"tag no match posted=%#x,%d %#x,%d\n",entry->tag,entry->tag,hdr->tag,hdr->tag);
 			return false;
 		}
 		if ( entry->src != Hermes::Mpi::AnySrc && entry->src != hdr->srcRank ) {
@@ -423,6 +423,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 			m_dbg.debug(CALL_INFO,1,1,"dataType no match posted=%d %d\n",entry->dataType,hdr->dataType);
 			return false;
 		}
+		m_dbg.debug(CALL_INFO,1,1,"match\n");
 		return true;
 	}
 
