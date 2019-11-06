@@ -73,7 +73,7 @@ class MpiLib : public Hermes::MP::Interface
 		*cb = [=](int retval ) {
 			m_dbg.debug(CALL_INFO_LAMBDA,"init",1,1,"size=%d rank=%d\n",m_size,m_rank);
 			m_treeInfo = new Collectives::Tree( m_rank, m_size, 10, 8 );
-			m_dbg.debug(CALL_INFO_LAMBDA,"init",1,1,"returing to motif\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"init",1,1,"returning to motif\n");
 			if ( (*functor)( retval ) ) {
         		delete functor;
 			}
@@ -87,7 +87,7 @@ class MpiLib : public Hermes::MP::Interface
 
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int retval ) {
-			m_dbg.debug(CALL_INFO_LAMBDA,"fini",1,1,"returing to motif\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"fini",1,1,"returning to motif\n");
 			if ( (*functor)( retval ) ) {
         		delete functor;
 			}
@@ -116,7 +116,7 @@ class MpiLib : public Hermes::MP::Interface
 		m_dbg.debug(CALL_INFO,1,1,"enter\n");
 		Hermes::Callback* cb = new Hermes::Callback;
 		*cb = [=](int retval ) {
-			m_dbg.debug(CALL_INFO_LAMBDA,"barrier",1,1,"returing to motif\n");
+			m_dbg.debug(CALL_INFO_LAMBDA,"barrier",1,1,"returning to motif\n");
 			if ( (*functor)( retval ) ) {
 				delete functor;
 			}
