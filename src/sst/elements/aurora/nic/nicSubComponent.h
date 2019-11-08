@@ -55,8 +55,8 @@ class NicSubComponent : public SubComponent {
 
 	Interfaces::SimpleNetwork& getNetworkLink( ) { return *m_netLink; }
 
-	void sendResp( int core, Event* event ) {
-		m_toCoreLinks[core]->send(m_toHostLatency,new NicEvent( event, NicEvent::Payload ) ); 
+	void sendResp( int core, Event* event, int64_t adjust = 0 ) {
+		m_toCoreLinks[core]->send( m_toHostLatency + adjust, new NicEvent( event, NicEvent::Payload ) ); 
 	}
 
 	void sendCredit( int core ) {
