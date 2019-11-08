@@ -292,9 +292,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			m_offset += length;
 
 			if ( isComplete() ) {
-				cmd->status->procAddr = m_proc;
-				cmd->status->length = m_recvLength;
-				cmd->status->addr = cmd->addr;
+				m_nicUpdatedAtSimCycle = Simulation::getSimulation()->getCurrentSimCycle();
 				return true;
 			} else {
 				return false;
@@ -310,9 +308,10 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 		Hermes::MemAddr addr() { return cmd->addr; }
 		Hermes::ProcAddr& proc() { return m_proc; }
 		Hermes::RDMA::RqId rqId() { return m_rqId; }
-		Hermes::RDMA::Status* status() { return cmd->status; }
+		SimTime_t getFiniCycle() { return m_nicUpdatedAtSimCycle; }
 
 	  private:
+		SimTime_t m_nicUpdatedAtSimCycle;
 		PostRecvCmd* cmd; 
 		size_t m_offset;
 		size_t m_recvLength;
@@ -383,6 +382,28 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 			return buf;
 		}
 
+       bool checkRqStatus( Hermes::RDMA::RqId rqId, Hermes::RDMA::Status& status, SimTime_t& nicUpdatedAtSimCycle ) {
+            recvBufMap_t::iterator iter = m_readyBufs.find(rqId);
+            if ( iter == m_readyBufs.end() ) {
+                return false;
+            }
+            status.procAddr = iter->second.front()->proc();
+            status.length = iter->second.front()->length();
+            status.addr = iter->second.front()->addr();
+			nicUpdatedAtSimCycle = iter->second.front()->getFiniCycle();
+            return true;
+        }
+
+        void popReadyBuf( Hermes::RDMA::RqId rqId ) {
+            m_readyBufs[rqId].pop_front( );
+            if ( m_readyBufs[rqId].empty() ) {
+                m_readyBufs.erase(rqId);
+            }
+        }
+        void pushReadyBufs( RecvBuf* buf ) {
+            m_readyBufs[buf->rqId()].push_back( buf );
+        }
+
 		bool findMemAddr( Hermes::RDMA::Addr addr, size_t length, Hermes::MemAddr& memAddr ) {
 			//printf("want addr=0x%" PRIx64 " length=%zu\n",addr,length);
 			memRegionMap_t::iterator iter = m_memRegions.begin();
@@ -416,6 +437,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 
 		streamMap_t m_activeStreams;
 		recvBufMap_t		m_rqs;
+		recvBufMap_t        m_readyBufs;
 
 		CheckRqCmd* m_checkRqCmd;
 		rdmaRecvMap_t m_rdmaRecvMap;
