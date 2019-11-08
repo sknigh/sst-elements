@@ -43,10 +43,11 @@ class NicCmd : public SST::Event {
 	enum Type { 
         FOREACH_CMD(GENERATE_CMD_ENUM)
     } type;
-	bool blocking;
+	bool waitResp;
+	bool useDelay;
 
     NicCmd() : Event() {}
-	NicCmd( Type type, bool blocking = true ) : Event(), type( type ), blocking(blocking) {}
+	NicCmd( Type type ) : Event(), type( type ), waitResp(true), useDelay(true) {}
 
 
     void serialize_order(SST::Core::Serialization::serializer &ser)  override {
@@ -132,7 +133,9 @@ class PutCmd : public NicCmd {
 	PutCmd( const Hermes::MemAddr& srcAddr, size_t size, Hermes::ProcAddr proc, Hermes::RVMA::VirtAddr virtAddr, size_t offset, 
 			Hermes::RVMA::Completion* completion, int* handle ) :
 		NicCmd(Put), srcAddr(srcAddr), size(size), proc(proc), virtAddr(virtAddr), offset( offset ), completion(completion), handle(handle)
-	{}
+	{ 
+		waitResp = false;
+	}
 
 	Hermes::MemAddr srcAddr;
 	size_t size;
@@ -150,8 +153,10 @@ class PostBufferCmd : public NicCmd {
 	PostBufferCmd() {}
 
 	PostBufferCmd( Hermes::MemAddr addr, size_t size, Hermes::RVMA::Completion* completion, Hermes::RVMA::Window window ) :
-		NicCmd(PostBuffer,false), addr(addr), size(size), completion(completion), window(window)
-	{}
+		NicCmd(PostBuffer), addr(addr), size(size), completion(completion), window(window)
+	{
+		waitResp = false;
+	}
 
 	Hermes::MemAddr addr;
 	size_t size;
@@ -167,8 +172,10 @@ class PostOneTimeBufferCmd : public NicCmd {
 
 	PostOneTimeBufferCmd( Hermes::RVMA::VirtAddr winAddr, size_t threshold, Hermes::RVMA::EpochType type,
 		Hermes::MemAddr bufAddr, size_t size, Hermes::RVMA::Completion* completion ) :
-		NicCmd(PostOneTimeBuffer,false), winAddr(winAddr), threshold(threshold), type(type), bufAddr(bufAddr), size(size), completion(completion)
-	{}
+		NicCmd(PostOneTimeBuffer), winAddr(winAddr), threshold(threshold), type(type), bufAddr(bufAddr), size(size), completion(completion)
+	{
+		waitResp = false;
+	}
 
 	Hermes::RVMA::VirtAddr winAddr;
 	size_t threshold;
@@ -185,13 +192,13 @@ class MwaitCmd : public NicCmd {
   public:
 	MwaitCmd() {}
 
-	MwaitCmd( Hermes::RVMA::Completion* completion, bool blocking ) : 
-		NicCmd(Mwait), completion(completion), blocking(blocking) 
-	{}
+	MwaitCmd( Hermes::RVMA::Completion* completion ) : 
+		NicCmd(Mwait), completion(completion)
+	{
+		useDelay = false;
+	}
 
 	Hermes::RVMA::Completion* completion;
-	bool blocking;
-
     NotSerializable(MwaitCmd);
 };
 }
