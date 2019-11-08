@@ -69,7 +69,10 @@ class PostRecvResp : public NicResp {
 
 class CheckRqResp : public NicResp {
   public:
-	CheckRqResp( int retval = 0 ) : NicResp(CheckRQ,retval) {}
+	CheckRqResp( Hermes::RDMA::Status& status, int retval = 0 ) :
+		NicResp(CheckRQ,retval), status(status) {}
+
+	Hermes::RDMA::Status status;
 
 	NotSerializable(SST::Aurora::RDMA::CheckRqResp);
 };
