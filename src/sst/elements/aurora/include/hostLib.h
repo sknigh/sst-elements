@@ -142,12 +142,12 @@ class HostLib : public Interface
 
 	void pushNicCmd( NicCmd* cmd ) {
 		m_dbg.debug(CALL_INFO,1,2,"\n");
-		host().cmdQ().push( cmd );
-		if ( ! cmd->blocking ) {
-			m_dbg.debug(CALL_INFO,1,2,"non-blocking cmd\n");
+		host().cmdQ().push( cmd, cmd->useDelay );
+		if ( ! cmd->waitResp ) {
+			m_dbg.debug(CALL_INFO,1,2,"don't wait for response\n");
 			doReturn( 0 );
 		} else {
-			m_dbg.debug(CALL_INFO,1,2,"blocking cmd \n");
+			m_dbg.debug(CALL_INFO,1,2,"wait for response\n");
 			host().respQ().setWakeup( 
 				[=]( Event* event ){
 					m_dbg.debug(CALL_INFO,1,2,"wakeup event=%p\n",event );
