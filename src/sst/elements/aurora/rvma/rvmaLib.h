@@ -124,7 +124,7 @@ class RvmaLib : public HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >
 	void mwait(  Hermes::RVMA::Completion* completion, Hermes::Callback* callback )
 	{
 		dbg().debug(CALL_INFO,1,2,"completion %p\n",completion);
-		NicCmd* cmd = new MwaitCmd( completion, true );
+		NicCmd* cmd = new MwaitCmd( completion );
 		setRetvalCallback();
 		doEnter( cmd, callback );
 	}
