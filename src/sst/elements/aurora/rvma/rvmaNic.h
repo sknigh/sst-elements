@@ -82,6 +82,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 			assert( getCompletion()->count == 0 );
 			getCompletion()->count = epochCount;
 			getCompletion()->addr = getAddr();
+			getCompletion()->nicUpdatedAtSimCycle  = Simulation::getSimulation()->getCurrentSimCycle();
 		}
 
 		size_t getEpochCount() { return epochCount; }

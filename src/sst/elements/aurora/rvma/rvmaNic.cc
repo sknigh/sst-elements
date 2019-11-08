@@ -222,9 +222,7 @@ void RvmaNicSubComponent::put( int coreNum, Event* event )
 
 	m_sendQ.push( new SendEntry( m_streamIdCnt++, coreNum, cmd ) );
 
-	if ( cmd->completion ) { 
-		sendResp( coreNum, new RetvalResp(0) );	
-	}
+	sendCredit( coreNum );	
 }
 
 void RvmaNicSubComponent::mwait( int coreNum, Event* event )
@@ -235,8 +233,16 @@ void RvmaNicSubComponent::mwait( int coreNum, Event* event )
 	assert( ! core.getWaitCmd() );
 
 	if ( cmd->completion->count ) {
+		SimTime_t now = Simulation::getSimulation()->getCurrentSimCycle();
+		SimTime_t toHostLatency = ( now - cmd->completion->nicUpdatedAtSimCycle ) /1000; 
+		uint64_t adjust = m_toHostLatency;
+
+		if ( toHostLatency <  m_toHostLatency ) {
+			adjust -= toHostLatency;
+		}
+
 		m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"mwait returning to host\n");
-		sendResp( coreNum, new RetvalResp(0) );	
+		sendResp( coreNum, new RetvalResp(0), -adjust );
 		delete cmd;
 	} else {
 		core.setWaitCmd( cmd );
@@ -412,10 +418,10 @@ void RvmaNicSubComponent::processSendPktFini( NetworkPkt* pkt, SendEntry* entry,
 		m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL1,"success, sent to node %d pid %d, bytes=%zu completion=%p\n",
 							entry->getDestNode(), entry->destPid(), entry->length(), entry->getCmd().completion );
 		int srcCore = entry->getSrcCore();
-		if ( NULL == entry->getCmd().completion ) {
-			sendResp( srcCore, new RetvalResp(0) );
-		} else { 
+		if ( entry->getCmd().completion ) {
 			entry->getCmd().completion->count = entry->getCmd().size;
+			entry->getCmd().completion->nicUpdatedAtSimCycle = Simulation::getSimulation()->getCurrentSimCycle(); 
+
 			Core& core = m_coreTbl[srcCore];
 			if ( core.getWaitCmd() && core.getWaitCmd()->completion == entry->getCmd().completion ) {
 				m_dbg.debug(CALL_INFO,2,1,"completed put matches\n");
