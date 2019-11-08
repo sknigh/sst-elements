@@ -38,8 +38,12 @@ class NicCmdQueue {
 		return m_current == m_size;
 	}
 
-	void push( Event* event ) {
-		m_link->send( m_delay, event );
+	void push( Event* event, bool delay ) {
+		if ( delay ) {
+			m_link->send( m_delay, event );
+		} else {
+			m_link->send( 0, event );
+		}
 		++m_current;
 	}
 
