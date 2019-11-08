@@ -187,7 +187,7 @@ void RdmaNicSubComponent::send( int coreNum, Event* event ) {
 
     m_sendQ.push_back( new MsgSendEntry( m_streamIdCnt++, coreNum, cmd ) );
 
-    sendResp( coreNum, new RetvalResp(0) );
+	sendCredit( coreNum );
 }
 
 void RdmaNicSubComponent::checkRQ( int coreNum, Event* event ) {
@@ -195,19 +195,28 @@ void RdmaNicSubComponent::checkRQ( int coreNum, Event* event ) {
 	Core& core = m_coreTbl[coreNum];
     CheckRqCmd* cmd = static_cast<CheckRqCmd*>(event);
 
-    m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"core %d rqId=%d blocking=%d\n",(int)cmd->rqId,cmd->blocking);
+    m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"core %d rqId=%d blocking=%d\n",coreNum, (int)cmd->rqId, cmd->blocking);
 
+	Hermes::RDMA::Status status;
 	if ( core.validRqId( cmd->rqId ) ) {
-		
 		assert( core.m_checkRqCmd == NULL );
+		SimTime_t nicUpdatedAtSimCycle;
+		bool retval = core.checkRqStatus( cmd->rqId, status, nicUpdatedAtSimCycle );
 
-		bool retval = cmd->status->length != -1;
 		if ( ! cmd->blocking || retval ) {
 			m_dbg.debug(CALL_INFO,1,1,"checkRQ returning to host, checkRqStatus %s\n",retval? "have message" : "no message");
 			if ( retval ) {
-				sendResp( coreNum, new CheckRqResp( 1 ) );
+				SimTime_t now = Simulation::getSimulation()->getCurrentSimCycle();
+				SimTime_t toHostLatency = ( now - nicUpdatedAtSimCycle ) /1000;
+				uint64_t adjust = m_toHostLatency;
+
+				if ( toHostLatency < m_toHostLatency ) {
+					adjust -= toHostLatency;
+				}
+				core.popReadyBuf( cmd->rqId );
+				sendResp( coreNum, new CheckRqResp( status, 1 ), -adjust );
 			} else {
-				sendResp( coreNum, new CheckRqResp( 0 ) );
+				sendResp( coreNum, new CheckRqResp( status, 0 ), -m_toHostLatency );
 			}
 			delete cmd;
 		} else {
@@ -216,7 +225,7 @@ void RdmaNicSubComponent::checkRQ( int coreNum, Event* event ) {
 		}
 
 	} else {
-		sendResp( coreNum, new CheckRqResp( -1 ) );
+		sendResp( coreNum, new CheckRqResp( status, -1 ), -150 );
 		delete cmd;
 	}
 }
@@ -586,13 +595,17 @@ void RdmaNicSubComponent::processMsgPktFini( RecvBuf* buffer, NetworkPkt* pkt, s
 		m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 2, RECV_DEBUG_MASK, "DMA done\n");
 
 		if ( buffer->isComplete() ) {
-
+			core.pushReadyBufs( buffer );
 			m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, NIC_DBG_MASK_MSG_LVL1, "success, received msg from node %d pid %d, msgLength=%zu\n",
 					srcNid, srcPid, buffer->numRcvdBytes() );
-			if ( core.m_checkRqCmd && core.m_checkRqCmd->status == buffer->status() ) {
 
+			Hermes::RDMA::Status status;
+			SimTime_t nicUpdatedAtSimCycle;
+			if ( core.m_checkRqCmd && core.checkRqStatus( buffer->rqId(), status, nicUpdatedAtSimCycle ) ) {
+
+				core.popReadyBuf( buffer->rqId() );
 				m_dbg.debug( CALL_INFO_LAMBDA, "processMsg", 1, NIC_DBG_MASK_MSG_LVL2, "checkRq returing to host\n");
-				sendResp( destPid, new CheckRqResp( 1 ) );
+				sendResp( destPid, new CheckRqResp( status, 1 ) );
 				delete core.m_checkRqCmd;
 				core.m_checkRqCmd = NULL;
 				delete buffer;
