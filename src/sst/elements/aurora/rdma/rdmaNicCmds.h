@@ -41,10 +41,11 @@ class NicCmd : public SST::Event {
 	enum Type { 
         FOREACH_CMD(GENERATE_CMD_ENUM)
     } type;
-	bool blocking;
+	bool waitResp;
+	bool useDelay;
 
     NicCmd() : Event() {}
-	NicCmd( Type type, bool blocking = true ) : Event(), type( type ), blocking(blocking) {}
+	NicCmd( Type type ) : Event(), type( type ), waitResp(true), useDelay(true) {}
 
     NotSerializable(SST::Aurora::RDMA::NicCmd);
 };
@@ -60,12 +61,13 @@ class CreateRqCmd : public NicCmd {
 
 class PostRecvCmd : public NicCmd {
   public:
-	PostRecvCmd( Hermes::RDMA::RqId rqId, Hermes::MemAddr& addr, size_t length, Hermes::RDMA::Status* status ) :
-		NicCmd( PostRecv, false ), rqId(rqId), addr(addr), length(length), status(status) {}
+	PostRecvCmd( Hermes::RDMA::RqId rqId, Hermes::MemAddr& addr, size_t length ) :
+		NicCmd( PostRecv ), rqId(rqId), addr(addr), length(length) {
+		waitResp = false;
+	}
 	Hermes::RDMA::RqId rqId;
 	Hermes::MemAddr addr;
 	size_t length;
-	Hermes::RDMA::Status* status;
 
     NotSerializable(SST::Aurora::RDMA::PostRecvCmd);
 };
@@ -73,7 +75,9 @@ class PostRecvCmd : public NicCmd {
 class SendCmd : public NicCmd {
   public:
 	SendCmd( Hermes::ProcAddr proc, Hermes::RDMA::RqId rqId, const Hermes::MemAddr& src, size_t length, int* handle ) :
-		NicCmd( Send ), proc(proc), rqId(rqId), src(src), length(length), handle(handle) { } 
+		NicCmd( Send ), proc(proc), rqId(rqId), src(src), length(length), handle(handle) { 
+		waitResp = false;
+	}
 
 	Hermes::ProcAddr proc;
 	Hermes::RDMA::RqId rqId;
@@ -85,11 +89,12 @@ class SendCmd : public NicCmd {
 
 class CheckRqCmd : public NicCmd {
   public:
-	CheckRqCmd( Hermes::RDMA::RqId rqId, Hermes::RDMA::Status* status, bool blocking ) :
-		NicCmd( CheckRQ ), rqId(rqId), status(status), blocking(blocking) {}
+	CheckRqCmd( Hermes::RDMA::RqId rqId, bool blocking ) :
+		NicCmd( CheckRQ ), rqId(rqId), blocking(blocking) {
+		useDelay = false;
+	}
 
 	Hermes::RDMA::RqId rqId;
-	Hermes::RDMA::Status* status;
 	bool blocking;
     NotSerializable(SST::Aurora::RDMA::CheckRqCmd);
 };
