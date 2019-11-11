@@ -144,7 +144,7 @@ void RvmaMpiPt2PtLib::processTest( TestBase* waitEntry, int )
 		});
 		
 		m_dbg.debug(CALL_INFO,1,MPI_DBG_MASK_MSG_LVL3,"calling mwait completion=%p\n", &entry->extra.completion );
-		rvma().mwait( &entry->extra.completion, cb );
+		rvma().mwait( &entry->extra.completion, true, cb );
 
    	} else if ( waitEntry->isDone() ) {
 
@@ -167,11 +167,11 @@ void RvmaMpiPt2PtLib::processTest( TestBase* waitEntry, int )
 			});
 
 			m_dbg.debug(CALL_INFO,1,MPI_DBG_MASK_MSG_LVL1,"call mwait completion=%p\n",completion);
-			rvma().mwait( completion, cb );
+			rvma().mwait( completion, true, cb );
 
 		} else {
 
-			poll( waitEntry );
+			poll( waitEntry, m_pendingLongPut.begin() );
 		}
 
 	} else {
@@ -181,38 +181,55 @@ void RvmaMpiPt2PtLib::processTest( TestBase* waitEntry, int )
 	}		
 }
 
-void RvmaMpiPt2PtLib::poll( TestBase* waitEntry )
+void RvmaMpiPt2PtLib::poll( TestBase* waitEntry, std::set<SendEntry*>::iterator iter )
 {
 	m_dbg.debug(CALL_INFO,1,1,"polling for completions\n");
-	std::deque<SendEntry*>::iterator iter = m_pendingLongPut.begin();
-	for ( ; iter != m_pendingLongPut.end(); ++iter ) {
-		if ( (*iter)->extra.completion.count ) {
-			size_t bytes = (*iter)->count * Mpi::sizeofDataType( (*iter)->dataType );
-			m_dbg.debug(CALL_INFO,1, MPI_DBG_MASK_MSG_LVL1,"success, sent long msg to rank %d, bytes=%zu\n",(*iter)->dest, bytes );
-			(*iter)->doneFlag = true;
-			m_pendingLongPut.erase(iter);
-			processTest( waitEntry, 0);
-			return;
-		} 
-	} 
 
-	if ( m_completionQ.front()->count ) {
-		m_dbg.debug(CALL_INFO,1,1,"have a new message\n");
+	if ( iter != m_pendingLongPut.end() ) {
 
-		Hermes::RVMA::Completion* completion = m_completionQ.front();
-		m_completionQ.pop();
+		SendEntry* sendEntry = (*iter);
+		++iter;
+
+		Callback* cb = new Callback( [=](int retval ){
+			if ( retval == 0 ) {
+				size_t bytes = sendEntry->count * Mpi::sizeofDataType( sendEntry->dataType );
+				m_dbg.debug(CALL_INFO,1, MPI_DBG_MASK_MSG_LVL1,"success, sent long msg to rank %d, bytes=%zu\n",sendEntry->dest, bytes );
+				sendEntry->doneFlag = true;
+				
+				m_pendingLongPut.erase(sendEntry);
+				processTest( waitEntry, 0);
+			} else {
+				poll( waitEntry, iter );
+			}
+		});
+
+		rvma().mwait( &sendEntry->extra.completion, false, cb );
+
+	} else {
+
+		Callback* cb = new Callback( [=](int retval ){
+			if ( retval == 0 ) {
+				m_dbg.debug(CALL_INFO_LAMBDA,"processTest",1,1,"have a new message\n");
+
+				Hermes::RVMA::Completion* completion = m_completionQ.front();
+				m_completionQ.pop();
 		
-    	Callback* cb = new Callback( std::bind( &RvmaMpiPt2PtLib::processTest, this, waitEntry, std::placeholders::_1 ) );
-		processMsg( completion, cb ); 
-		return;
+				Callback* cb = new Callback( std::bind( &RvmaMpiPt2PtLib::processTest, this, waitEntry, std::placeholders::_1 ) );
+				processMsg( completion, cb );
+				return;
+			} else {
+				Callback* cb = new Callback( [=](int retval ){
+					m_dbg.debug(CALL_INFO_LAMBDA,"processTest",1,1,"return from poll wait\n");
+					poll(waitEntry,m_pendingLongPut.begin() );
+				});
+
+				m_selfLink->send( 100,new SelfEvent(cb,0) );
+			}
+		});
+
+		rvma().mwait( m_completionQ.front(), false, cb );
+
 	}
-
-	Callback* cb = new Callback( [=](int retval ){
-		m_dbg.debug(CALL_INFO_LAMBDA,"processTest",1,1,"return from poll wait\n");
-		poll(waitEntry);
-	});
-
-	m_selfLink->send( 100,new SelfEvent(cb,0) );
 }
 
 void RvmaMpiPt2PtLib::makeProgress( Hermes::Callback* callback )
@@ -359,7 +376,7 @@ void RvmaMpiPt2PtLib::processGoMsg( Hermes::MemAddr msg, Hermes::Callback* callb
 	m_dbg.debug(CALL_INFO,1, MPI_DBG_MASK_MSG_LVL2,"sent long msg body to nid %d pid %d, bytes=%zu\n",procAddr.node,procAddr.pid, bytes);
 	rvma().put( entry->buf, bytes, procAddr, entry->extra.rvmaAddr, 0, &entry->extra.completion, NULL, cb );
 
-	m_pendingLongPut.push_back(entry);
+	m_pendingLongPut.insert(entry);
 }
 
 void RvmaMpiPt2PtLib::processMatch( const Hermes::MemAddr& msg, RecvEntryBase* _entry, Hermes::Callback* callback ) {

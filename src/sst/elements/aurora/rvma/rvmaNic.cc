@@ -242,10 +242,23 @@ void RvmaNicSubComponent::mwait( int coreNum, Event* event )
 		}
 
 		m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL2,"mwait returning to host\n");
-		sendResp( coreNum, new RetvalResp(0), -adjust );
+		if ( cmd->blocking ) {
+			sendResp( coreNum, new RetvalResp(0), -adjust );
+		} else {
+			//printf("%s():%d\n",__func__,__LINE__);
+			if ( adjust == m_toHostLatency ) {
+				sendResp( coreNum, new RetvalResp(0), -m_toHostLatency );
+			} else {
+				sendResp( coreNum, new RetvalResp(-1), -m_toHostLatency );
+			}
+		}
 		delete cmd;
 	} else {
-		core.setWaitCmd( cmd );
+		if ( cmd->blocking ) {
+			core.setWaitCmd( cmd );
+		} else {
+			sendResp( coreNum, new RetvalResp(-1), -m_toHostLatency );
+		}
 	}
 }
 

@@ -192,13 +192,14 @@ class MwaitCmd : public NicCmd {
   public:
 	MwaitCmd() {}
 
-	MwaitCmd( Hermes::RVMA::Completion* completion ) : 
-		NicCmd(Mwait), completion(completion)
+	MwaitCmd( Hermes::RVMA::Completion* completion, bool blocking ) : 
+		NicCmd(Mwait), completion(completion), blocking(blocking)
 	{
 		useDelay = false;
 	}
 
 	Hermes::RVMA::Completion* completion;
+	bool blocking;
     NotSerializable(MwaitCmd);
 };
 }

@@ -113,7 +113,7 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 
 	void processGoMsg( Hermes::MemAddr msg, Hermes::Callback* callback );
 	void waitForLongGo( Hermes::Callback*, SendEntry*, int retval );
-	void poll( TestBase* );
+	void poll( TestBase*, std::set<SendEntry*>::iterator iter );
 	void recvCheckMatch( RecvEntry* entry, Hermes::Callback* callback );
 
 	Hermes::RVMA::VirtAddr m_windowAddr;
@@ -125,7 +125,7 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
 	std::deque< Hermes::MemAddr > m_unexpectedRecvs;
 
 	std::queue<RecvEntry*> m_pendingLongEntry;
-	std::deque<SendEntry*> m_pendingLongPut;
+	std::set<SendEntry*> m_pendingLongPut;
 	int m_longPutWinAddr;
 };
 
