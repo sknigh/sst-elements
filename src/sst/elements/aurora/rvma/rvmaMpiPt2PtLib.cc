@@ -403,7 +403,8 @@ void RvmaMpiPt2PtLib::processMatch( const Hermes::MemAddr& msg, RecvEntryBase* _
 			repostRecvBuffer( msg, callback );
 		});
 
-		m_selfLink->send( calcMemcpyLatency( bytes ), new SelfEvent(x) );
+		int delay = calcMemcpyLatency( bytes );
+		m_selfLink->send( delay, new SelfEvent(x) );
 
 	} else {
 

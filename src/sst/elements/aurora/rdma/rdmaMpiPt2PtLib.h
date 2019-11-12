@@ -73,7 +73,8 @@ class RdmaMpiPt2PtLib : public MpiPt2Pt
 	size_t getMsgHdrSize() { return sizeof(MsgHdr); }
 	Hermes::RDMA::Interface& rdma() { return *m_rdma; }
 
-	struct MsgHdr : public MsgHdrBase {
+	struct __attribute__ ((packed)) MsgHdr : public MsgHdrBase {
+		Hermes::ProcAddr pad; // Not used by RDMA but here so header is the same size of RVMA 
 		enum Type { Match, Ack } type;
 		Hermes::RDMA::Addr readAddr;
 		void* key;

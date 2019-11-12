@@ -60,7 +60,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 		m_matchLatency = params.find<int>("matchLatency",0);
 		double bw = params.find<UnitAlgebra>("memcpyBandwidth","0").getRoundedValue();
 		if ( bw ) {
-			m_memcpyLatency = ((1/bw) * 1000000000); 
+			m_memcpyLatency = ((1.0/bw) * 1000000000.0); 
 		}
 	}
 
@@ -135,7 +135,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
 	uint64_t calcMemcpyLatency( size_t bytes ) {
 		m_dbg.debug(CALL_INFO,1,1,"memcpyLatency for %zu bytes is %" PRIu64 " ns.\n",bytes,  (uint64_t) bytes * m_memcpyLatency);
-		return bytes * m_memcpyLatency;
+		return ((double)bytes * m_memcpyLatency);
 	}
 
 	virtual void _init( int* numRanks, int* myRank, Hermes::Callback* callback ) = 0;
@@ -240,7 +240,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 		NotSerializable(SelfEvent);
 	}; 
 
-    class MsgHdrBase {
+    class __attribute__ ((packed)) MsgHdrBase {
 	  protected:
 		MsgHdrBase() {}
 		MsgHdrBase( const MsgHdrBase& ){}
@@ -541,7 +541,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 	int m_testallLatency;
 	int m_testanyLatency;
 	int m_matchLatency;
-	int m_memcpyLatency;
+	double m_memcpyLatency;
 
   private:
 	Host*   m_os;

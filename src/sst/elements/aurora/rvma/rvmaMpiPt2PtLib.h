@@ -93,7 +93,7 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
     typedef TestallEntryBase TestallEntry;
     typedef TestanyEntryBase TestanyEntry;
 
-	struct MsgHdr : public MsgHdrBase {
+	struct __attribute__ ((packed)) MsgHdr : public MsgHdrBase {
 		Hermes::ProcAddr procAddr;
 		enum Type { Match, Go } type;
 		Hermes::RVMA::VirtAddr rvmaAddr;
