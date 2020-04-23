@@ -34,7 +34,7 @@ public:
 
     void issue( uint64_t time, RVMA::Callback* callback ) {
         EmberEvent::issue( time );
-        m_api.mwait( m_completion, callback );
+        m_api.mwait( m_completion, true, callback );
     }
 
 private:
