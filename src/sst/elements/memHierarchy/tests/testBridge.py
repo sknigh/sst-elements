@@ -6,7 +6,7 @@ num_mem = 2
 mem_size = 0x40000
 niter = 1000
 netBW = "80GiB/s"
-debug = 2
+debug = 0
 debug_level = 0
 
 
@@ -32,8 +32,9 @@ class Network:
             "output_latency" : "10ns",
             "input_buf_size" : "1KB",
             "output_buf_size" : "1KB",
-            "debug" : 1,
+            "debug" : 0,
             })
+        self.rtr.setSubComponent("topology","merlin.singlerouter")
 
 
     def getNextPort(self):
@@ -94,8 +95,8 @@ def buildMem(num, network):
         "entry_cache_size": 256*1024*1024, #Entry cache size of mem/blocksize
         "clock": "1GHz",
         "network_bw": netBW,
-        "addr_range_start" : num * (mem_size / num_mem),
-        "addr_range_end" : (num+1) * (mem_size / num_mem) -1,
+        "addr_range_start" : num * (mem_size // num_mem),
+        "addr_range_end" : (num+1) * (mem_size // num_mem) -1,
         })
 
     memLink = sst.Link("MemDir_%d"%num)

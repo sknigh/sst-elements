@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -35,15 +35,20 @@ using SST::Interfaces::SimpleNetwork;
 class MemNetBridge : public SST::Merlin::Bridge::Translator {
 public:
 /* Element Library Info */
-    SST_ELI_REGISTER_SUBCOMPONENT(MemNetBridge, "memHierarchy", "MemNetBridge", SST_ELI_ELEMENT_VERSION(1,0,0),
-            "Merlin::Bridge::Translator for memory network bridging", "SST::Merlin::Bridge::Translator")
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
+        MemNetBridge,
+        "memHierarchy",
+        "MemNetBridge",
+        SST_ELI_ELEMENT_VERSION(1,0,0),
+        "Merlin::Bridge::Translator for memory network bridging",
+        SST::Merlin::Bridge::Translator)
 
     SST_ELI_DOCUMENT_PARAMS(
             {"debug",       "(int) Print debug information. Options: 0[no output], 1[stdout], 2[stderr], 3[file]", "0"},
             {"debug_level", "(int) Debugging level. Between 0 and 10", "0"} )
 
 /* Begin class definition */
-    MemNetBridge(SST::Component *comp, SST::Params &params);
+    MemNetBridge(SST::ComponentId_t id, SST::Params &params, Merlin::Bridge*  bridge);
     ~MemNetBridge();
     void init(unsigned int);
     void setup(void);

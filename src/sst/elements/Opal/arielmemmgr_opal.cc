@@ -1,8 +1,8 @@
-// Copyright 2009-2018 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2018, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -14,23 +14,22 @@
 // distribution.
 
 #include <sst_config.h>
-#include <stdio.h>
-
-#include <sst/core/link.h>
-
 #include "arielmemmgr_opal.h"
 #include "Opal_Event.h"
 
+#include <sst/core/link.h>
+
+
 using namespace SST::OpalComponent;
 
-MemoryManagerOpal::MemoryManagerOpal(ComponentId_t id, Params& params) : 
+MemoryManagerOpal::MemoryManagerOpal(ComponentId_t id, Params& params) :
             ArielComponent::ArielMemoryManager(id, params) {
 
     // Find links
     std::string linkprefix = "opal_link_";
     std::string linkname = linkprefix + "0";
     int numPorts = 0;
-    
+
     std::string latency = params.find<std::string>("opal_latency", "32ps");
 
     while (isPortConnected(linkname)) {
@@ -39,7 +38,7 @@ MemoryManagerOpal::MemoryManagerOpal(ComponentId_t id, Params& params) :
         numPorts++;
         linkname = linkprefix + std::to_string(numPorts);
     }
-    
+
     std::string translatorstr = params.find<std::string>("translator", "ariel.MemoryManagerSimple");
     if (NULL != (temp_translator = loadUserSubComponent<ArielMemoryManager>("translator"))) {
         output->verbose(CALL_INFO, 1, 0, "Opal is using named subcomponent translator\n");
@@ -79,21 +78,16 @@ void MemoryManagerOpal::handleInterrupt(SST::Event *event) {
 }
 
 bool MemoryManagerOpal::allocateMalloc(const uint64_t size, const uint32_t level, const uint64_t addr, const uint64_t ip, const uint32_t thread) {
-    OpalEvent * tse = new OpalEvent(OpalComponent::EventType::HINT);
-    tse->setHint(level);
-    tse->setResp(addr, 0, size);
+    OpalEvent * tse = new OpalEvent(OpalComponent::EventType::HINT, level, addr, size, thread);
     opalLink[thread]->send(tse);
 
     return temp_translator->allocateMalloc(size, level, addr, ip, thread);
 }
 
-bool MemoryManagerOpal::allocateMMAP(const uint64_t size, const uint32_t level, const uint64_t virtualAddr, const uint64_t ip, const uint32_t file, const uint32_t thread) {
-    OpalEvent * tse = new OpalEvent(OpalComponent::EventType::MMAP);
-    tse->setHint(level);
+bool MemoryManagerOpal::allocateMMAP(const uint64_t size, const uint32_t level, const uint64_t addr, const uint64_t ip, const uint32_t file, const uint32_t thread) {
+    OpalEvent * tse = new OpalEvent(OpalComponent::EventType::HINT, level, addr, size, thread);
     tse->setFileId(file);
     output->output("Before sending to Opal.. file ID is: %" PRIu32 "\n", file);
-    // length should be a multiple of page size
-    tse->setResp(virtualAddr, 0, size);
     opalLink[thread]->send(tse);
     return true;
 }

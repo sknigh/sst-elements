@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -32,7 +32,7 @@ namespace Ember {
 class EmberContextSwitchingMessagePassingGenerator : public EmberMessagePassingGenerator {
 
 public:
-	EmberContextSwitchingMessagePassingGenerator( Component* owner, Params& params);
+	EmberContextSwitchingMessagePassingGenerator( ComponentId_t id, Params& params);
 	bool autoInitialize() { return true; }
 
 	virtual void configureEnvironment(const SST::Output* output, uint32_t rank, uint32_t worldSize) = 0;

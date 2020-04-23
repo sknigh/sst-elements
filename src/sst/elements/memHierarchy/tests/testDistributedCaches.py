@@ -29,6 +29,7 @@ comp_network.addParams({
       "id" : "0",  
       "topology" : "merlin.singlerouter"
 })
+comp_network.setSubComponent("topology","merlin.singlerouter")
 
 for x in range(cores):
     comp_cpu = sst.Component("cpu" + str(x), "memHierarchy.trivialCPU")
@@ -105,7 +106,6 @@ for x in range(memories):
         "clock" : uncoreclock,
         "coherence_protocol" : coherence,
         "entry_cache_size" : 32768,
-        "net_memory_name" : "memory" + str(x),
         # Debug parameters
         "debug" : DEBUG_DIR,
         "debug_level" : 10,
@@ -131,7 +131,6 @@ for x in range(memories):
         # Debug parameters
         "debug" : DEBUG_MEM,
         "debug_level" : 10,
-        # Region parameters - can be here or in the NIC
         "interleave_size" : "64B",    # Interleave at line granularity between memories
         "interleave_step" : str(memories * 64) + "B",
         "addr_range_start" : x*64,

@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -29,25 +29,29 @@ using namespace SST::Firefly;
 LoopBack::LoopBack(ComponentId_t id, Params& params ) :
         Component( id )
 {
-    int numCores = params.find<int>("numCores", 1 );
+    int nicsPerNode = params.find<int>("nicsPerNode", 1 );
+    int numCores = params.find<int>("numCores", 1 )/nicsPerNode;
 
-    for ( int i = 0; i < numCores; i++ ) {
-        std::ostringstream tmp;
-        tmp <<  i;
+	for ( int j = 0; j < nicsPerNode; j++ ) {
+		std::ostringstream nic;
+		nic <<  j;
+		for ( int i = 0; i < numCores; i++ ) {
+			std::ostringstream core;
+			core <<  i;
 
-        Event::Handler<LoopBack,int>* handler =
-                new Event::Handler<LoopBack,int>(
-                                this, &LoopBack::handleCoreEvent, i );
+			Event::Handler<LoopBack,int>* handler =
+                new Event::Handler<LoopBack,int>( this, &LoopBack::handleCoreEvent, j*numCores + i );
 
-        Link* link = configureLink("core" + tmp.str(), "1 ns", handler );
-        assert(link);
-        m_links.push_back( link );
-    }
+			Link* link = configureLink("nic"+ nic.str() + "core" + core.str(), "1 ns", handler );
+			assert(link);
+			m_links.push_back( link );
+		}
+	}
 }
 
 void LoopBack::handleCoreEvent( Event* ev, int src ) {
     LoopBackEventBase* event = static_cast<LoopBackEventBase*>(ev);
     int dest = event->core;
-    event->core = src; 
+    event->core = src;
     m_links[dest]->send(0,ev );
 }

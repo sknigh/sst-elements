@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -242,8 +242,8 @@ VOID Instruction(INS ins, VOID *v)
     // Instruments memory accesses using a predicated call, i.e.
     // the instrumentation is called iff the instruction will actually be executed.
     //
-    // The IA-64 architecture has explicitly predicated instructions. 
-    // On the IA-32 and Intel(R) 64 architectures conditional moves and REP 
+    // The IA-64 architecture has explicitly predicated instructions.
+    // On the IA-32 and Intel(R) 64 architectures conditional moves and REP
     // prefixed instructions appear as predicated instructions in Pin.
     UINT32 memOperands = INS_MemoryOperandCount(ins);
 
@@ -261,7 +261,7 @@ VOID Instruction(INS ins, VOID *v)
 		IARG_THREAD_ID,
                 IARG_END);
         }
-        // Note that in some architectures a single memory operand can be 
+        // Note that in some architectures a single memory operand can be
         // both read and written (for instance incl (%eax) on IA-32)
         // In that case we instrument it once for read and once for write.
         if (INS_MemoryOperandIsWritten(ins, memOp))
@@ -329,18 +329,18 @@ VOID Fini(INT32 code, VOID *v)
 #endif
     }
 
-    printf("PROSPERO: Thread read entries:     %llu\n", thread_instr_id[0].readCount);
-    printf("PROSPERO: Thread write entries:    %llu\n", thread_instr_id[0].writeCount);
+    printf("PROSPERO: Thread read entries:     %" PRIu64 "\n", thread_instr_id[0].readCount);
+    printf("PROSPERO: Thread write entries:    %" PRIu64 "\n", thread_instr_id[0].writeCount);
     printf("PROSPERO: Done.\n");
 }
 
 /* ===================================================================== */
 /* Print Help Message                                                    */
 /* ===================================================================== */
-   
+
 INT32 Usage()
 {
-    PIN_ERROR( "This Pintool prints a trace of memory addresses\n" 
+    PIN_ERROR( "This Pintool prints a trace of memory addresses\n"
               + KNOB_BASE::StringKnobSummary() + "\n");
     return -1;
 }
@@ -425,7 +425,7 @@ int main(int argc, char *argv[])
     }
 
     nextFileTrip = KnobFileTrip.Value();
-    printf("PROSPERO: Next file trip count set to %llu instructions.\n", nextFileTrip);
+    printf("PROSPERO: Next file trip count set to %" PRIu64 " instructions.\n", nextFileTrip);
 
     // Thread zero is always started
     thread_instr_id[0].threadInit = 1;

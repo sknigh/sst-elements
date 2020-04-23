@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -23,6 +23,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //SST includes
+#include <sst_config.h>
 
 // std includes
 #include <iostream>
@@ -40,14 +41,6 @@ using namespace SST;
 using namespace SST::CramSim;
 using namespace std;
 
-c_TxnConverter::c_TxnConverter(SST::Component *owner, SST::Params& x_params) : SubComponent(owner) {
-
-	c_Controller* m_owner = dynamic_cast<c_Controller *>(owner);
-	m_cmdScheduler= m_owner->getCmdScheduler();
-	output = m_owner->getOutput();
-	unsigned l_bankNum=m_owner->getDeviceDriver()->getTotalNumBank();
-        build(x_params, l_bankNum);
-}
 c_TxnConverter::c_TxnConverter(SST::ComponentId_t id, SST::Params& x_params, Output* out, unsigned banks, c_CmdScheduler* scheduler) : SubComponent(id), output(out), m_cmdScheduler(scheduler) {
     build(x_params, banks);
 }

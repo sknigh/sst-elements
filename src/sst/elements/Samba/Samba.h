@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // This file is part of the SST software package. For license
 // information, see the LICENSE file in the top level directory of the
 // distribution.
@@ -37,6 +37,7 @@
 
 #include "TLBhierarchy.h"
 #include "PageTableWalker.h"
+#include "PageFaultHandler.h"
 #include <sst/elements/memHierarchy/memEventBase.h>
 
 //#include "arielcore.h"
@@ -84,19 +85,21 @@ namespace SST {
                     {"parallel_mode_L%(levels)d", "this is for the corner case of having a one cycle overlap with accessing cache","0"},
                     {"page_walk_latency", "Each page table walk latency in nanoseconds", "50"},
                     {"self_connected", "Determines if the page walkers are acutally connected to memory hierarchy or just add fixed latency (self-connected)", "0"},
-                    {"emulate_faults", "This indicates if the page faults should be emulated through requesting pages from Opal", "0"},
-                    {"opal_latency", "latency to communicate to the centralized memory manager", "32ps"}
+                    {"emulate_faults", "This indicates if the page faults should be emulated through requesting pages from page fault handler", "0"}
                 )
 
                 SST_ELI_DOCUMENT_PORTS(
                     {"cpu_to_mmu%(corecount)d", "Each Samba has link to its core", {}},
-                    {"ptw_to_opal%(corecount)d", "Each Samba has link to page fault handler (memory manager)", {}},
                     {"mmu_to_cache%(corecount)d", "Each Samba to its corresponding cache", {}},
                     {"ptw_to_mem%(corecount)d", "Each TLB hierarchy has a link to the memory for page walking", {}},
                     {"alloc_link_%(corecount)d", "Each core's link to an allocation tracker (e.g. memSieve)", {}}
                 )
 
-				Samba(SST::ComponentId_t id, SST::Params& params); 
+                SST_ELI_DOCUMENT_SUBCOMPONENT_SLOTS(
+                        {"pagefaulthandler", "subcomponent to manage page faults", "SST::SambaComponent::PageFaultHandler"}
+                )
+
+				Samba(SST::ComponentId_t id, SST::Params& params);
 				void init(unsigned int phase);
                                 void setup()  { };
 				void finish() {for(int i=0; i<(int) core_count; i++) TLB[i]->finish();};
@@ -116,6 +119,11 @@ namespace SST {
 				std::map<Address_t,int>  MAPPED_PAGE_SIZE1GB;
 
 				std::map<Address_t,int> PENDING_PAGE_FAULTS;
+                std::map<Address_t,int> PENDING_PAGE_FAULTS_PGD;
+                std::map<Address_t,int> PENDING_PAGE_FAULTS_PUD;
+                std::map<Address_t,int> PENDING_PAGE_FAULTS_PMD;
+                std::map<Address_t,int> PENDING_PAGE_FAULTS_PTE;
+                int cr3I;
 				std::map<Address_t,int> PENDING_SHOOTDOWN_EVENTS;
 
 
@@ -125,21 +133,19 @@ namespace SST {
 				void operator=(const Samba&); // do not implement
 
 				int create_pinchild(char* prog_binary, char** arg_list){return 0;}
-				
+
 	    		        SST::Link * event_link; // Note that this is a self-link for events
 
 				SST::Link ** cpu_to_mmu;
 
                                 std::vector<TLBhierarchy*> TLB;
 
-				int emulate_faults; // This indicates if Opal is used or not
-				
+				int emulate_faults; // This indicates if pafe fault handler is used or not
+
 				SST::Link ** mmu_to_cache;
 
 				SST::Link ** ptw_to_mem;
 
-				SST::Link ** ptw_to_opal;
-			
 				long long int max_inst;
 				char* named_pipe;
 				int* pipe_id;
@@ -150,6 +156,7 @@ namespace SST {
 				uint32_t core_count;
 				SST::Link** Samba_link;
 
+				PageFaultHandler* pageFaultHandler;
 
 				Statistic<uint64_t>* statReadRequests;
 

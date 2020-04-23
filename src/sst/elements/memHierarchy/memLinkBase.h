@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -47,13 +47,9 @@ public:
 #define MEMLINKBASE_ELI_PARAMS { "debug",              "(int) Where to print debug output. Options: 0[no output], 1[stdout], 2[stderr], 3[file]", "0"},\
     { "debug_level",        "(int) Debug verbosity level. Between 0 and 10", "0"},\
     { "debug_addr",         "(comma separated uint) Address(es) to be debugged. Leave empty for all, otherwise specify one or more, comma-separated values. Start and end string with brackets",""},\
-    { "accept_region",      "(bool) Set by parent component but user should unset if region (addr_range_start/end, interleave_size/step) params are provided to memory. Provides backward compatibility for address translation between memory controller and directory.", "0"},\
-    { "addr_range_start",   "(uint) Set by parent component. Lowest address handled by the parent.", "0"},\
-    { "addr_range_end",     "(uint) Set by parent component. Highest address handled by the parent.", "uint64_t-1"},\
-    { "interleave_size",    "(string) Set by parent component. Size of interleaved chunks.", "0B"},\
-    { "interleave_step",    "(string) Set by parent component. Distance between interleaved chunks.", "0B"}
+    { "accept_region",      "(bool) Set by parent component but user should unset if region (addr_range_start/end, interleave_size/step) params are provided to memory. Provides backward compatibility for address translation between memory controller and directory.", "false"}
 
-    
+
     // Struct identifying an endpoint
     struct EndpointInfo {
         std::string name;   /* Component name (in SST configuration script) */
@@ -70,10 +66,6 @@ public:
     };
 
     /* Constructor */
-    MemLinkBase(Component * comp, Params &params) : SubComponent(comp) { 
-        build(params);
-    }
-
     MemLinkBase(ComponentId_t id, Params &params) : SubComponent(id) {
         build(params);
     }
@@ -159,11 +151,20 @@ private:
             DEBUG_ADDR.insert(*it);
         }
 
-        // Set up address region
-        uint64_t addrStart = params.find<uint64_t>("addr_range_start", 0);
-        uint64_t addrEnd = params.find<uint64_t>("addr_range_end", (uint64_t) - 1);
-        string ilSize = params.find<std::string>("interleave_size", "0B");
-        string ilStep = params.find<std::string>("interleave_step", "0B");
+        // Set up address region TODO deprecate in the next major release (SST 10)
+        bool found, foundany;
+        uint64_t addrStart = params.find<uint64_t>("addr_range_start", 0, found);
+        foundany = found;
+        uint64_t addrEnd = params.find<uint64_t>("addr_range_end", (uint64_t) - 1, found);
+        foundany |= found;
+        string ilSize = params.find<std::string>("interleave_size", "0B", found);
+        foundany |= found;
+        string ilStep = params.find<std::string>("interleave_step", "0B", found);
+        foundany |= found;
+        if (foundany) {
+            dbg.output("%s, Warning: Region parameters given to link managers (addr_range_start/end, interleave_size/step) will be overwritten if the component sets them; specify region via component to eliminate this message\n",
+                    getName().c_str());
+        }
 
         // Ensure SI units are power-2 not power-10 - for backward compability
         fixByteUnits(ilSize);

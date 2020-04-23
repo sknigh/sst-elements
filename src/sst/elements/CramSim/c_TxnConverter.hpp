@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -88,7 +88,6 @@ public:
         {"resQueueSize", "Total size of the response queue over time", "transactions", 1},
     )
 
-    c_TxnConverter(SST::Component * comp, SST::Params& x_params);
     c_TxnConverter(SST::ComponentId_t id, SST::Params& x_params, Output* out, unsigned banks, c_CmdScheduler* scheduler);
     void build(SST::Params& x_params, unsigned l_bankNum);
     ~c_TxnConverter();

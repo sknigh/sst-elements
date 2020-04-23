@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -50,11 +50,10 @@ public:
     typedef MemBackendConvertor::ReqId ReqId;
     MemBackend();
 
-    MemBackend(Component *comp, Params &params) : SubComponent(comp) { build(params); }
     MemBackend(ComponentId_t id, Params &params) : SubComponent(id) { build(params); }
-    void build(Params& params) 
+    void build(Params& params)
     {
-    	output = new SST::Output("@t:MemoryBackend[@p:@l]: ", 
+    	output = new SST::Output("@t:MemoryBackend[@p:@l]: ",
                 params.find<uint32_t>("debug_level", 0),
                 params.find<uint32_t>("debug_mask", 0),
                 (Output::output_location_t)params.find<int>("debug_location", 0) );
@@ -78,7 +77,7 @@ public:
 
     virtual void setGetRequestorHandler( std::function<const std::string(ReqId)> func ) {
         m_getRequestor = func;
-    } 
+    }
 
     const std::string getRequestor( ReqId id ) {
         return m_getRequestor( id );
@@ -86,14 +85,14 @@ public:
 
     virtual void setup() {}
     virtual void finish() {}
-    
+
     /* Called by parent's clock() function */
-    virtual bool clock(Cycle_t UNUSED(cycle)) { return true; } 
-    
+    virtual bool clock(Cycle_t UNUSED(cycle)) { return true; }
+
     /* Interface to parent */
     virtual size_t getMemSize() { return m_memSize; }
     virtual uint32_t getRequestWidth() { return m_reqWidth; }
-    virtual int32_t getMaxReqPerCycle() { return m_maxReqPerCycle; } 
+    virtual int32_t getMaxReqPerCycle() { return m_maxReqPerCycle; }
     virtual bool isClocked() { return true; }
     virtual bool issueCustomRequest(ReqId, CustomCmdInfo*) {
         output->fatal(CALL_INFO, -1, "Error (%s): This backend cannot handle custom requests\n", getName().c_str());
@@ -116,11 +115,10 @@ class SimpleMemBackend : public MemBackend {
   public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED_API(SST::MemHierarchy::SimpleMemBackend, SST::MemHierarchy::MemBackend)
 
-    SimpleMemBackend() : MemBackend() {} 
-    SimpleMemBackend(Component *comp, Params &params) : MemBackend(comp,params) {}  
-    SimpleMemBackend(ComponentId_t id, Params &params) : MemBackend(id,params) {}  
+    SimpleMemBackend() : MemBackend() {}
+    SimpleMemBackend(ComponentId_t id, Params &params) : MemBackend(id,params) {}
 
-    virtual bool issueRequest( ReqId, Addr, bool isWrite, unsigned numBytes ) = 0; 
+    virtual bool issueRequest( ReqId, Addr, bool isWrite, unsigned numBytes ) = 0;
 
     void handleMemResponse( ReqId id ) {
         m_respFunc( id );
@@ -142,8 +140,7 @@ class SimpleMemBackend : public MemBackend {
 class FlagMemBackend : public MemBackend {
   public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED_API(SST::MemHierarchy::FlagMemBackend, SST::MemHierarchy::MemBackend)
-    FlagMemBackend(Component *comp, Params &params) : MemBackend(comp,params) {}  
-    FlagMemBackend(ComponentId_t id, Params &params) : MemBackend(id,params) {}  
+    FlagMemBackend(ComponentId_t id, Params &params) : MemBackend(id,params) {}
     virtual bool issueRequest( ReqId, Addr, bool isWrite, uint32_t flags, unsigned numBytes ) = 0;
 
     void handleMemResponse( ReqId id, uint32_t flags ) {
@@ -153,7 +150,7 @@ class FlagMemBackend : public MemBackend {
     virtual void setResponseHandler( std::function<void(ReqId,uint32_t)> func ) {
         m_respFunc = func;
     }
-    
+
     virtual std::string getBackendConvertorType() {
         return "memHierarchy.flagMemBackendConvertor";
     }
@@ -165,8 +162,7 @@ class FlagMemBackend : public MemBackend {
 class ExtMemBackend : public MemBackend {
   public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED_API(SST::MemHierarchy::ExtMemBackend, SST::MemHierarchy::MemBackend)
-    ExtMemBackend(Component *comp, Params &params) : MemBackend(comp,params) {}  
-    ExtMemBackend(ComponentId_t id, Params &params) : MemBackend(id,params) {}  
+    ExtMemBackend(ComponentId_t id, Params &params) : MemBackend(id,params) {}
     virtual bool issueRequest( ReqId, Addr, bool isWrite,
                                std::vector<uint64_t> ins,
                                uint32_t flags, unsigned numBytes ) = 0;
@@ -181,7 +177,7 @@ class ExtMemBackend : public MemBackend {
     virtual void setResponseHandler( std::function<void(ReqId,uint32_t)> func ) {
         m_respFunc = func;
     }
-    
+
     virtual std::string getBackendConvertorType() {
         return "memHierarchy.extMemBackendConvertor";
     }

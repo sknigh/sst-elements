@@ -1,3 +1,17 @@
+// Copyright 2009-2020 NTESS. Under the terms
+// of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+//
+// Copyright (c) 2009-2020, NTESS
+// All rights reserved.
+//
+// Portions are copyright of other developers:
+// See the file CONTRIBUTORS.TXT in the top level directory
+// the distribution for more information.
+//
+// This file is part of the SST software package. For license
+// information, see the LICENSE file in the top level directory of the
+// distribution.
 
 #ifndef _H_SHOGUN_NIC
 #define _H_SHOGUN_NIC
@@ -32,10 +46,10 @@ namespace Shogun {
 
         SST_ELI_DOCUMENT_PORTS( {"port", "Port into network", {"shogun.ShogunCreditEvent", "shogun.ShogunEvent"} } )
 
-        ShogunNIC(SST::Component* component, Params& params);
         ShogunNIC(SST::ComponentId_t id, Params& params, int vns);
         ~ShogunNIC();
 
+#ifndef SST_ENABLE_PREVIEW_BUILD
         /** Second half of building the interface.
         Initialize network interface
         @param portName - Name of port to connect to
@@ -47,8 +61,8 @@ namespace Shogun {
      */
         virtual bool initialize(const std::string& portName, const UnitAlgebra& link_bw,
             int vns, const UnitAlgebra& in_buf_size,
-            const UnitAlgebra& out_buf_size) override;
-
+            const UnitAlgebra& out_buf_size);
+#endif
         /**
      		* Sends a network request during the init() phase
      	*/

@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -14,6 +14,8 @@
 // distribution.
 #include <sst_config.h>
 #include "sst/elements/merlin/test/nic.h"
+
+#include "sst/elements/merlin/merlin.h"
 
 #include <unistd.h>
 #include <signal.h>
@@ -34,7 +36,6 @@ namespace Merlin {
 
 nic::nic(ComponentId_t cid, Params& params) :
     Component(cid),
-    last_vn(0),
     packets_sent(0),
     packets_recd(0),
     stalled_cycles(0),
@@ -49,35 +50,14 @@ nic::nic(ComponentId_t cid, Params& params) :
     net_id = params.find<int>("id",-1);
     if ( net_id == -1 ) {
     }
-    // std::cout << "id: " << id << "\n";
-    // std::cout << "Nic ID:  " << id << " has Component id " << cid << "\n";
 
     num_peers = params.find<int>("num_peers",-1);
     if ( num_peers == -1 ) {
     }
-    // std::cout << "num_peers: " << num_peers << "\n";
-    
-    num_vns = 1;
-    
-    std::string link_bw_s = params.find<std::string>("link_bw");
-    if ( link_bw_s == "" ) {
-    }
-    // std::cout << "link_bw: " << link_bw_s << std::endl;
-    // TimeConverter* tc = Simulation::getSimulation()->getTimeLord()->getTimeConverter(link_bw);
-    UnitAlgebra link_bw(link_bw_s);
-    
+
     num_msg = params.find<int>("num_messages",10);
-    
-    remap = params.find<int>("remap", 0);
 
-    send_untimed_data = params.find<bool>("send_untimed_data","true");
-
-    
-    group_offset = params.find<int>("group_offset", 0); 
-    group_peers = params.find<int>("group_peers", num_peers);
-
-    id = (net_id - group_offset + remap) % group_peers;
-
+    send_untimed_bcast = params.find<bool>("send_untimed_data","false");
 
     UnitAlgebra message_size = params.find<std::string>("message_size","64b");
     if ( message_size.hasUnits("B") ) message_size  *= UnitAlgebra("8b/B");
@@ -88,46 +68,12 @@ nic::nic(ComponentId_t cid, Params& params) :
         ("networkIF", ComponentInfo::SHARE_NONE, 1 /* vns */);
 
     if ( !link_control ) {
-        // Not defined in python code.  See if this uses the legacy
-        // API.  If so, load it with loadSubComponent.  Otherwise, use
-        // the default linkcontrol (merlin.linkcontrol) loaded with
-        // the new API.
-        bool found;
-
-        // Get the link control to be used
-        std::string linkcontrol_type = params.find<std::string>("linkcontrol_type",found);
-
-        if ( found ) {
-            // Legacy
-DISABLE_WARN_DEPRECATED_DECLARATION
-            link_control = (SimpleNetwork*)loadSubComponent(linkcontrol_type, this, params);
-REENABLE_WARNING
-    
-            UnitAlgebra in_buf_size = params.find<UnitAlgebra>("in_buf_size","1kB");
-            UnitAlgebra out_buf_size = params.find<UnitAlgebra>("out_buf_size","1kB");
-
-    
-            link_control->initialize("rtr", link_bw, num_vns, in_buf_size, out_buf_size);            
-        }
-        else {
-            // Just load the default
-            Params if_params;
-
-            if_params.insert("link_bw",params.find<std::string>("link_bw"));
-            if_params.insert("input_buf_size",params.find<std::string>("in_buf_size","1kB"));
-            if_params.insert("output_buf_size",params.find<std::string>("out_buf_size","1kB"));            
-            if_params.insert("port_name","rtr");
-        
-            link_control = loadAnonymousSubComponent<SST::Interfaces::SimpleNetwork>
-                ("merlin.linkcontrol", "networkIF", 0,
-                 ComponentInfo::SHARE_PORTS | ComponentInfo::INSERT_STATS, if_params, 1 /* vns */);
-        }
+        merlin_abort.fatal(CALL_INFO,1,"Error: no LinkControl object loaded into test_nic\n");
     }
 
-    
-    last_target = id;
-    next_seq = new int[group_peers];
-    for ( int i = 0 ; i < group_peers ; i++ )
+    last_target = net_id;
+    next_seq = new int[num_peers];
+    for ( int i = 0 ; i < num_peers ; i++ )
         next_seq[i] = 0;
 
     // Register a clock
@@ -147,16 +93,16 @@ nic::~nic()
 
 void nic::finish()
 {
-    if ( send_untimed_data ) {
-        if ( init_count != num_peers ) {
-            output.output("NIC %d didn't receive all complete point-to-point messages.  Only recieved %d\n",net_id,init_count);
-        }
-        
+    if ( init_count != num_peers ) {
+        output.output("NIC %d didn't receive all complete point-to-point messages.  Only recieved %d\n",net_id,init_count);
+    }
+
+    if ( send_untimed_bcast ) {
         if ( init_broadcast_count != (num_peers -1 ) ) {
             output.output("NIC %d didn't receive all complete broadcast messages.  Only recieved %d\n",net_id,init_broadcast_count);
         }
     }
-    
+
     link_control->finish();
     output.output("Nic %d had %d stalled cycles.\n",net_id,stalled_cycles);
 }
@@ -165,14 +111,15 @@ void nic::setup()
 {
     link_control->setup();
     if ( link_control->getEndpointID() != net_id ) {
-        output.output("NIC ids don't match: param = %" PRIi64 ", LinkControl = %" PRIi64 "\n", 
+        output.output("NIC ids don't match: param = %" PRIi64 ", LinkControl = %" PRIi64 "\n",
 		(int64_t) net_id, (int64_t) link_control->getEndpointID());
     }
 
-    if ( !send_untimed_data ) return;
     if ( init_count != num_peers ) {
         output.output("NIC %d didn't receive all init point-to-point messages.  Only recieved %d\n",net_id,init_count);
     }
+
+    if ( !send_untimed_bcast ) return;
 
     if ( init_broadcast_count != (num_peers -1 ) ) {
         output.output("NIC %d didn't receive all init broadcast messages.  Only recieved %d\n",net_id,init_broadcast_count);
@@ -182,7 +129,7 @@ void nic::setup()
 
 void nic::complete(unsigned int phase) {
     link_control->complete(phase);
-    
+
     if ( phase == 0 ) {
         init_count = 0;
         init_broadcast_count = 0;
@@ -209,43 +156,53 @@ nic::init(unsigned int phase) {
 
 void
 nic::init_complete(unsigned int phase) {
-    if ( !send_untimed_data && init_state != 0 ) return;
-    // For init and complete, use all the endpoints
     switch ( init_state ) {
     case 0:
     {
         // Wait until network is initialized
         if ( !link_control->isNetworkInitialized() ) break;
         net_id = link_control->getEndpointID();
-        id = net_id;
         last_target = net_id;
-        // output.output("%s: net_id = %d\n",getName().c_str(),net_id);
 
         if ( net_id == 0 ) {
-            // output.output("Rank %d sending broadcast message\n",net_id);
-            SimpleNetwork::Request* req =
-                new SimpleNetwork::Request(SimpleNetwork::INIT_BROADCAST_ADDR, net_id,
-                                           0, true, true);
-            link_control->sendUntimedData(req);
-            init_state = 2;
+            if ( send_untimed_bcast ) {
+                SimpleNetwork::Request* req =
+                    new SimpleNetwork::Request(SimpleNetwork::INIT_BROADCAST_ADDR, net_id,
+                                               0, true, true);
+                link_control->sendUntimedData(req);
+                init_state = 2;
+            }
+            else {
+                // Send a point to point message to all endpoints,
+                // including myself
+                // output.output("%d: Rank %d sending point-to-point messages\n",phase,net_id);
+                for ( int i = 0; i < num_peers; ++i ) {
+                    SimpleNetwork::Request* req =
+                        new SimpleNetwork::Request(i, net_id, 0, true, true);
+                    link_control->sendUntimedData(req);
+                }
+                init_state = 4;
+            }
         }
         else {
-            init_state = 1;
+            if ( send_untimed_bcast ) {
+                init_state = 1;
+            }
+            else {
+                init_state = 3;
+            }
         }
         break;
     }
     case 1:
     {
-        // SimpleNetwork::Request* req = link_control->recvInitData();
         SimpleNetwork::Request* req;
         while ( (req = link_control->recvInitData() ) != NULL ) {
-            // std::cout << "NIC " << id << " Received an init event from " << req->src << " in phase " << phase << "!" << std::endl;
             delete req;
             init_broadcast_count++;
         }
 
         if ( init_broadcast_count >= net_id ) {
-            // output.output("Rank %d sending broadcast message\n",net_id);
             SimpleNetwork::Request* req =
                 new SimpleNetwork::Request(SimpleNetwork::INIT_BROADCAST_ADDR, net_id,
                                            0, true, true);
@@ -255,10 +212,9 @@ nic::init_complete(unsigned int phase) {
         break;
     }
     case 2:
-    {   
+    {
         SimpleNetwork::Request* req;
         while ( (req = link_control->recvInitData() ) != NULL ) {
-            // std::cout << "NIC " << id << " Received an init event from " << req->src << " in phase " << phase << "!" << std::endl;
 
             // It's possible some of the point to point will overlap
             // some of the broadcasts, so we need to check to see
@@ -287,7 +243,7 @@ nic::init_complete(unsigned int phase) {
             else {
                 init_state = 3;
             }
-        }        
+        }
         break;
     }
     case 3:
@@ -308,7 +264,7 @@ nic::init_complete(unsigned int phase) {
                 link_control->sendUntimedData(req);
             }
             init_state = 4;
-        }        
+        }
         break;
     }
     case 4:
@@ -326,8 +282,8 @@ nic::init_complete(unsigned int phase) {
 
         if ( init_count == num_peers ) {
             init_state = 5;
-        }        
-        
+        }
+
         break;
     }
     default:
@@ -356,107 +312,12 @@ public:
         out.output("%s MyRtrEvent to be delivered at %" PRIu64 " with priority %d.  seq = %d\n",
                    header.c_str(), getDeliveryTime(), getPriority(), seq);
     }
-    
+
 
 private:
 
     ImplementSerializable(SST::Merlin::MyRtrEvent);
 };
-
-
-// bool
-// nic::clock_handler(Cycle_t cycle)
-// {
-//     static const int send_vc = 0;
-//     static const int size_in_bits = 64;
-//     int expected_recv_count = (num_peers-1)*num_msg;
-
-//     if ( !done && (packets_recd >= expected_recv_count) ) {
-//         output.output("%" PRIu64 ": NIC %d received all packets (total of %d)!\n", cycle, id, expected_recv_count);
-//         primaryComponentOKToEndSim();
-//         done = true;
-//     }
-//     // Send packets
-//     if ( packets_sent < expected_recv_count ) {
-//         if ( link_control->spaceToSend(send_vc,size_in_bits) ) {
-//             // std::cout << id << " sending packet number: " << packets_sent << std::endl;
-//             last_target++;
-//             if ( last_target == id ) last_target++;
-//             last_target %= num_peers;
-//             if ( last_target == id ) last_target++;
-//             last_target %= num_peers;
-            
-//             MyRtrEvent* ev = new MyRtrEvent(packets_sent/(num_peers-1));
-//             SimpleNetwork::Request* req = new SimpleNetwork::Request();
-            
-//             // req->dest = net_map[last_target];
-//             req->dest = last_target;
-//             req->src = net_id;
-
-//             req->vn = 0;
-//             req->size_in_bits = size_in_bits;
-//             req->givePayload(ev);
-//             // if ( net_id == 319 && last_target == 320 ) {
-//             //     req->setTraceType(SST::Interfaces::SimpleNetwork::Request::FULL);
-//             //     req->setTraceID(net_id*1000 + packets_sent);
-//             // }
-
-//             if ( req->dest == num_peers - 1 ) {
-//                 bool sent = link_control->send(req,send_vc);
-//                 assert( sent );
-//             }
-//             else {
-//                 delete req;
-//             }
-//             //std::cout << cycle << ": " << id << " sent packet " << ev->seq << " to " << ev->dest << std::endl;
-//             packets_sent++;
-//             if ( packets_sent == expected_recv_count ) {
-//                 output.output("%" PRIu64 ":  %d Finished sending packets (total of %d)\n",
-//                               cycle, id, num_msg);
-//             }
-//         }
-//         else {
-//             stalled_cycles++;
-//         }
-//     }
-
-//     for ( int vn = 0 ; vn < num_vns ; vn++ ) {
-//         last_vn = (last_vn + 1) % num_vns; // round-robin
-//         if ( link_control->requestToReceive(last_vn) ) {
-//             SimpleNetwork::Request* req = link_control->recv(last_vn);
-//             MyRtrEvent* ev = dynamic_cast<MyRtrEvent*>(req->takePayload());
-//             if ( ev == NULL ) {
-//                 Simulation::getSimulation()->getSimulationOutput().fatal(CALL_INFO, -1, "Aieeee!\n");
-//             }
-//             packets_recd++;
-//             // int src = net_map[req->src];
-//             int src = req->src;
-
-//             if ( req->dest != net_id ) {
-//                 output.fatal(CALL_INFO,-1,"%d received packet intended for %d\n",net_id,(int)req->dest);
-//             }
-//             else {
-//                 output.output("--->%d received packet from %d\n",net_id,(int)req->src);
-//             }
-
-            
-// #if 0
-//             if ( next_seq[src] != ev->seq ) {
-//                 output.output("%d received packet %d from %d Expected sequence number %d\n",
-//                               id, ev->seq, ev->src, next_seq[ev->src]);
-//                 assert(false);
-//             }
-// #endif
-//             next_seq[src]++;
-//             //std::cout << cycle << ": " << id << " Received an event on vn " << rec_ev->vn << " from " << rec_ev->src << " (packet "<<packets_recd<<" )"<< std::endl;
-//             delete ev;
-//             delete req;
-//             break;
-//         }
-//     }
-
-//     return false;
-// }
 
 
 bool
@@ -465,7 +326,7 @@ nic::clock_handler(Cycle_t cycle)
     // For run phase of simulation, only use my group (my group
     // defaults to everyone if nothing is specified)
     static const int send_vc = 0;
-    expected_recv_count = group_peers * num_msg;
+    expected_recv_count = num_peers * num_msg;
 
     if ( !done && (packets_recd >= expected_recv_count) ) {
         output.output("%" PRIu64 ": NIC %d received all packets (total of %d)!\n", cycle, net_id, expected_recv_count);
@@ -478,13 +339,12 @@ nic::clock_handler(Cycle_t cycle)
     if ( packets_sent < expected_recv_count ) {
         if ( link_control->spaceToSend(send_vc,msg_size) ) {
             last_target++;
-            last_target %= group_peers;
-            
-            MyRtrEvent* ev = new MyRtrEvent(packets_sent/group_peers);
+            last_target %= num_peers;
+
+            MyRtrEvent* ev = new MyRtrEvent(packets_sent/num_peers);
             SimpleNetwork::Request* req = new SimpleNetwork::Request();
-            
-            // req->dest = net_map[last_target];
-            req->dest = last_target + group_offset;
+
+            req->dest = last_target;
             req->src = net_id;
 
             req->vn = send_vc;
@@ -507,36 +367,24 @@ nic::clock_handler(Cycle_t cycle)
         }
     }
 
-    for ( int vn = 0 ; vn < num_vns ; vn++ ) {
-        last_vn = (last_vn + 1) % num_vns; // round-robin
-        if ( link_control->requestToReceive(last_vn) ) {
-            SimpleNetwork::Request* req = link_control->recv(last_vn);
-            MyRtrEvent* ev = dynamic_cast<MyRtrEvent*>(req->takePayload());
-            if ( ev == NULL ) {
-                Simulation::getSimulation()->getSimulationOutput().fatal(CALL_INFO, -1, "Aieeee!\n");
-            }
-            packets_recd++;
-            // int src = net_map[req->src];
-            int src = req->src;
-
-            if ( req->dest != net_id ) {
-                output.fatal(CALL_INFO,-1,"%d received packet intended for %d\n",net_id,(int)req->dest);
-            }
-
-            
-#if 0
-            if ( next_seq[src-group_offset] != ev->seq ) {
-                output.output("%d received packet %d from %d Expected sequence number %d\n",
-                              net_id, ev->seq, ev->src, next_seq[ev->src-group_offset]);
-                assert(false);
-            }
-#endif
-            next_seq[src-group_offset]++;
-            //std::cout << cycle << ": " << id << " Received an event on vn " << rec_ev->vn << " from " << rec_ev->src << " (packet "<<packets_recd<<" )"<< std::endl;
-            delete ev;
-            delete req;
-            break;
+    // Receive packets
+    if ( link_control->requestToReceive(send_vc) ) {
+        SimpleNetwork::Request* req = link_control->recv(0);
+        MyRtrEvent* ev = dynamic_cast<MyRtrEvent*>(req->takePayload());
+        if ( ev == NULL ) {
+            Simulation::getSimulation()->getSimulationOutput().fatal(CALL_INFO, -1, "Aieeee!\n");
         }
+        packets_recd++;
+        // int src = net_map[req->src];
+        int src = req->src;
+
+        if ( req->dest != net_id ) {
+            output.fatal(CALL_INFO,-1,"%d received packet intended for %d\n",net_id,(int)req->dest);
+        }
+
+        next_seq[src]++;
+        delete ev;
+        delete req;
     }
 
     return false;

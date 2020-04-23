@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -20,14 +20,17 @@
 namespace SST {
 namespace Merlin {
 
-TestNetworkInspector::TestNetworkInspector(Component* parent, Params& params) :
-    SimpleNetwork::NetworkInspector(parent)
-{}
+TestNetworkInspector::TestNetworkInspector(ComponentId_t id, Params& params, const std::string& sub_id) :
+    SimpleNetwork::NetworkInspector(id)
+{
+    test_count = registerStatistic<uint64_t>("test_count", sub_id);
+}
 
+#ifndef SST_ENABLE_PREVIEW_BUILD
 void TestNetworkInspector::initialize(string id) {
     test_count = registerStatistic<uint64_t>("test_count", id);
 }
-
+#endif
 void TestNetworkInspector::inspectNetworkData(SimpleNetwork::Request* req) {
     test_count->addData(1);
 }

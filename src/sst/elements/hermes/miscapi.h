@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,7 +28,6 @@ class Interface : public Hermes::Interface {
     public:
 
     Interface( ComponentId_t id ) : Hermes::Interface(id) {}
-    Interface( Component* parent ) : Hermes::Interface(parent) {}
 
     virtual void getNodeNum( int*, Callback*) { assert(0); }
     virtual void getNumNodes( int*, Callback*) { assert(0); }

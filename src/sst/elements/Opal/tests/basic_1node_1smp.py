@@ -19,7 +19,7 @@ local_memory_capacity = 128  	# Size of memory in MBs
 shared_memory_capacity = 2048	# 2GB
 shared_memory = 1
 page_size = 4 # In KB 
-num_pages = local_memory_capacity * 1024 / page_size + 8*1024*1024/page_size
+num_pages = local_memory_capacity * 1024 // page_size + 8*1024*1024//page_size
 
 
 ariel = sst.Component("cpu", "ariel.ariel")
@@ -30,7 +30,7 @@ ariel.addParams({
     "maxissuepercycle" : 2,
     "maxtranscore": 16,
     "pipetimeout" : 0,
-    "corecount" : cores/2,
+    "corecount" : cores//2,
     "arielmode" : 0,
     "appargcount" : 0,
     "max_insts" : 10000,
@@ -58,7 +58,7 @@ mmu = sst.Component("mmu", "Samba")
 mmu.addParams({
         "os_page_size": 4,
 	"perfect": 0,
-        "corecount": cores/2,
+        "corecount": cores//2,
 	"sizes_L1": 3,
 	"page_size1_L1": 4,
         "page_size2_L1": 2048,
@@ -106,6 +106,11 @@ mmu.addParams({
 })
 mmu.enableAllStatistics({"type":"sst.AccumulatorStatistic"})
 
+# MMU uses this page fault handler.
+pagefaulthandler = mmu.setSubComponent("pagefaulthandler", "Opal.PageFaultHandler")
+pagefaulthandler.addParams({
+    "opal_latency" : "30ps"
+})
 
 opal= sst.Component("opal","Opal")
 opal.addParams({
@@ -118,8 +123,8 @@ opal.addParams({
 	"shared_mem.mempool0.size"	: shared_memory_capacity*1024,
 	"shared_mem.mempool0.frame_size": page_size,
 	"shared_mem.mempool0.mem_type"	: 0,
-	"node0.cores" 			: cores/2,
-	"node0.allocation_policy" 	: 0,
+	"node0.cores" 			: cores//2,
+	"node0.allocation_policy" 	: 1,
 	"node0.page_migration" 		: 0,
 	"node0.page_migration_policy" 	: 0,
 	"node0.num_pages_to_migrate" 	: 0,
@@ -170,6 +175,7 @@ nic_params = {
 	"shared_memory": shared_memory,
 	"node": 0,
 	"network_bw": "96GiB/s",
+	"local_memory_size" : local_memory_capacity*1024*1024,
 }
 
 
@@ -181,7 +187,7 @@ class Network:
         self.rtr = sst.Component("rtr_%s"%name, "merlin.hr_router")
         self.rtr.addParams({
             "id": networkId,
-            "topology": "merlin.singlerouter",
+            #"topology": "merlin.singlerouter",
             "link_bw" : "80GiB/s",
             "xbar_bw" : "80GiB/s",
             "flit_size" : "8B",
@@ -191,6 +197,7 @@ class Network:
             "output_buf_size" : "1KB",
             })
 
+	topo = self.rtr.setSubComponent("topology", "merlin.singlerouter")
 
     def getNextPort(self):
         self.ports += 1
@@ -224,13 +231,13 @@ for next_core in range(cores):
 	PTWOpalLink = sst.Link("ptw_opal_" + str(next_core))
 	ArielOpalLink = sst.Link("ariel_opal_" + str(next_core))
 
-	if next_core < cores/2:
+	if next_core < cores//2:
         	arielMMULink.connect((ariel, "cache_link_%d"%next_core, "300ps"), (mmu, "cpu_to_mmu%d"%next_core, "300ps"))
-		ArielOpalLink.connect((memmgr, "opal_link_%d"%next_core, "300ps"), (opal, "requestLink%d"%(2*next_core), "300ps"))
+		ArielOpalLink.connect((memmgr, "opal_link_%d"%next_core, "300ps"), (opal, "coreLink%d"%(next_core), "300ps"))
 		MMUCacheLink.connect((mmu, "mmu_to_cache%d"%next_core, "300ps"), (l1_cpulink, "port", "300ps"))
-		PTWOpalLink.connect( (mmu, "ptw_to_opal%d"%next_core, "300ps"), (opal, "requestLink%d"%(2*next_core + 1), "300ps") )
+		PTWOpalLink.connect( (pagefaulthandler, "opal_link_%d"%next_core, "300ps"), (opal, "mmuLink%d"%(next_core), "300ps") )
 	else:
-		PTWMemLink.connect((mmu, "ptw_to_mem%d"%(next_core-cores/2), "300ps"), (l1_cpulink, "port", "300ps"))
+		PTWMemLink.connect((mmu, "ptw_to_mem%d"%(next_core-cores//2), "300ps"), (l1_cpulink, "port", "300ps"))
 
 	l2_core_link = sst.Link("l2cache_" + str(next_core) + "_link")
 	l2_core_link.connect((l1_memlink, "port", "300ps"), (l2_cpulink, "port", "300ps"))				
@@ -258,6 +265,7 @@ l3_ring_link.connect( (l3_link, "port", "300ps"), (internal_network.rtr, "port%d
 
 mem = sst.Component("local_memory", "memHierarchy.MemController")	
 mem.addParams({
+	"clock"   : "1.2GHz",
 	"backing" : "none",
 	"backend" : "memHierarchy.timingDRAM",
 	"backend.id" : 0,
@@ -323,26 +331,32 @@ netLink.connect((dc_cpulink, "port", "300ps"), (internal_network.rtr, "port%d"%(
 external_network = Network("Ext_Mem_Net",1,"20ns","20ns")
 port = external_network.getNextPort()
 
-mem = sst.Component("ExternalNVMmemContr", "memHierarchy.MemController")
-mem.addParams({
-        "backend.mem_size" : str(shared_memory_capacity) + "MB",
+ext_mem = sst.Component("ExternalNVMmemContr", "memHierarchy.MemController")
+ext_mem.addParams({
+        "memory_size" : str(shared_memory_capacity) + "MB",
+	"max_requests_per_cycle"    : 4,
 	"backing" : "none",
-        "backend" : "memHierarchy.Messier",
-        "backendConvertor.backend" : "memHierarchy.Messier",
-        "backend.clock" : clock,
         "clock" : clock,
 })
-mem_link = mem.setSubComponent("cpulink", "memHierarchy.MemLink")
-mem_link.addParams({ "node" : 9999, }) ## does not belong to any node 
 
-dc = sst.Component("ExtMemDc", "memHierarchy.DirectoryController")
-dc.addParams({
+ext_memory = ext_mem.setSubComponent("backend", "memHierarchy.Messier")
+ext_memory.addParams({
+    "max_requests_per_cycle"    : 4,
+    "mem_size"                  : str(shared_memory_capacity) + "MB",
+    "clock"                     : clock,
+})
+
+ext_mem_link = ext_mem.setSubComponent("cpulink", "memHierarchy.MemLink")
+ext_mem_link.addParams({ "node" : 9999, }) ## does not belong to any node 
+
+ext_dc = sst.Component("ExtMemDc", "memHierarchy.DirectoryController")
+ext_dc.addParams({
 	"entry_cache_size": 256*1024*1024, #Entry cache size of mem/blocksize
 	"clock": "1GHz",
 })
-dc_cpulink = dc.setSubComponent("cpulink", "Opal.OpalMemNIC")
-dc_memlink = dc.setSubComponent("memlink", "memHierarchy.MemLink")
-dc_cpulink.addParams({
+ext_dc_cpulink = ext_dc.setSubComponent("cpulink", "Opal.OpalMemNIC")
+ext_dc_memlink = ext_dc.setSubComponent("memlink", "memHierarchy.MemLink")
+ext_dc_cpulink.addParams({
 	"network_bw": "80GiB/s",
 	"addr_range_start" : (local_memory_capacity*1024*1024),
 	"addr_range_end" : (local_memory_capacity*1024*1024) + (shared_memory_capacity*1024*1024) -1,
@@ -369,13 +383,13 @@ messier.addParams({
 })
 
 link_nvm_bus_link = sst.Link("External_mem_nvm_link")
-link_nvm_bus_link.connect( (messier, "bus", "50ps"), (mem, "cube_link", "50ps") )
+link_nvm_bus_link.connect( (messier, "bus", "50ps"), (ext_memory, "nvm_link", "50ps") )
 
-memLink = sst.Link("External_mem_dc_link")
-memLink.connect( (dc_memlink, "port", "500ps"), (mem_link, "port", "500ps") )
+extmemLink = sst.Link("External_mem_dc_link")
+extmemLink.connect( (ext_dc_memlink, "port", "500ps"), (ext_mem_link, "port", "500ps") )
 
-dcLink = sst.Link("External_mem_link")
-dcLink.connect( (dc_cpulink, "port", "500ps"), (external_network.rtr, "port%d"%port, "500ps") )
+ext_dcLink = sst.Link("External_mem_link")
+ext_dcLink.connect( (ext_dc_cpulink, "port", "500ps"), (external_network.rtr, "port%d"%port, "500ps") )
 
 
 

@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 // 
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 // 
 // Portions are copyright of other developers:
@@ -22,42 +22,6 @@
 
 using namespace SST::Merlin;
 
-
-/*
- * Port Layout:
- * [0, params.p)                    // Hosts 0 -> params.p
- * [params.p, params.p+params.a-1)  // Routers within this group
- * [params.p+params.a-1, params.k)  // Other groups
- */
-
-topo_dragonfly_legacy::topo_dragonfly_legacy(Component* comp, Params &p) :
-    Topology(comp)
-{
-    params.p = (uint32_t)p.find<int>("dragonfly:hosts_per_router");
-    params.a = (uint32_t)p.find<int>("dragonfly:routers_per_group");
-    params.k = (uint32_t)p.find<int>("num_ports");
-    params.h = (uint32_t)p.find<int>("dragonfly:intergroup_per_router");
-    params.g = (uint32_t)p.find<int>("dragonfly:num_groups");
-
-    std::string route_algo = p.find<std::string>("dragonfly:algorithm", "minimal");
-
-    if ( !route_algo.compare("valiant") ) {
-        if ( params.g <= 2 ) {
-            /* 2 or less groups... no point in valiant */
-            algorithm = MINIMAL;
-        } else {
-            algorithm = VALIANT;
-        }
-    } else {
-        algorithm = MINIMAL;
-    }
-
-    uint32_t id = p.find<int>("id");
-    group_id = id / params.a;
-    router_id = id % params.a;
-    output.verbose(CALL_INFO, 1, 1, "%u:%u:  ID: %u   Params:  p = %u  a = %u  k = %u  h = %u  g = %u\n",
-            group_id, router_id, id, params.p, params.a, params.k, params.h, params.g);
-}
 
 /*
  * Port Layout:
@@ -132,7 +96,7 @@ void topo_dragonfly_legacy::route(int port, int vc, internal_router_event* ev)
 internal_router_event* topo_dragonfly_legacy::process_input(RtrEvent* ev)
 {
     dgnflyAddr dstAddr = {0, 0, 0, 0};
-    idToLocation(ev->request->dest, &dstAddr);
+    idToLocation(ev->getDest(), &dstAddr);
 
     switch (algorithm) {
     case MINIMAL:
@@ -155,7 +119,7 @@ internal_router_event* topo_dragonfly_legacy::process_input(RtrEvent* ev)
     topo_dragonfly_legacy_event *td_ev = new topo_dragonfly_legacy_event(dstAddr);
     td_ev->src_group = group_id;
     td_ev->setEncapsulatedEvent(ev);
-    td_ev->setVC(ev->request->vn * 3);
+    td_ev->setVC(td_ev->getVN() * 3);
     
     return td_ev;
 }
@@ -206,7 +170,7 @@ void topo_dragonfly_legacy::routeInitData(int port, internal_router_event* ev, s
 internal_router_event* topo_dragonfly_legacy::process_InitData_input(RtrEvent* ev)
 {
     dgnflyAddr dstAddr;
-    idToLocation(ev->request->dest, &dstAddr);
+    idToLocation(ev->getDest(), &dstAddr);
     topo_dragonfly_legacy_event *td_ev = new topo_dragonfly_legacy_event(dstAddr);
     td_ev->src_group = group_id;
     td_ev->setEncapsulatedEvent(ev);

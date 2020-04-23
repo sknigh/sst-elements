@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,10 +28,9 @@ template< class TYPE >
 class EmberShmemGetGenerator : public EmberShmemGenerator {
 
 public:
-	EmberShmemGetGenerator(SST::Component* owner, Params& params) : EmberShmemGenerator(owner, params, "" ) {}
 	EmberShmemGetGenerator(SST::ComponentId_t id, Params& params) :
 		EmberShmemGenerator(id, params, "ShmemGet" ), m_phase(0)
-	{ 
+	{
         m_nelems = params.find<int>("arg.nelems", 1);
         m_printResults = params.find<bool>("arg.printResults", false );
         m_blocking = params.find<bool>("arg.blocking", true );
@@ -42,7 +41,7 @@ public:
 		free(tmp);
 	}
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
         bool ret = false;
         switch ( m_phase ) {
@@ -78,23 +77,23 @@ public:
 
         case 3:
             if ( m_blocking ) {
-                enQ_get( evQ, 
+                enQ_get( evQ,
                     m_dest,
-                    m_src, 
+                    m_src,
                     m_nelems*sizeof(TYPE),
                     m_other_pe );
                 enQ_barrier_all( evQ );
             } else {
-                enQ_get_nbi( evQ, 
+                enQ_get_nbi( evQ,
                     m_dest,
-                    m_src, 
+                    m_src,
                     m_nelems*sizeof(TYPE),
                     m_other_pe );
                 enQ_quiet( evQ );
             }
             break;
 
-        case 4: 
+        case 4:
             for ( int i = 0; i < m_nelems; i++ ) {
                 TYPE want = ((m_my_pe + 1) % 2 )  + i;
                 if ( m_printResults ) {
@@ -139,8 +138,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-    EmberShmemGetIntGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetGenerator(owner,  params) { }
     EmberShmemGetIntGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetGenerator(id,  params) { }
 };
@@ -159,8 +156,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-    EmberShmemGetLongGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetGenerator(owner,  params) { }
     EmberShmemGetLongGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetGenerator(id,  params) { }
 };
@@ -179,8 +174,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-    EmberShmemGetDoubleGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetGenerator(owner,  params) { }
     EmberShmemGetDoubleGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetGenerator(id,  params) { }
 };
@@ -199,8 +192,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-    EmberShmemGetFloatGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetGenerator(owner,  params) { }
     EmberShmemGetFloatGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetGenerator(id,  params) { }
 };

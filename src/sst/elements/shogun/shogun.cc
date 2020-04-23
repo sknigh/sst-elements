@@ -1,8 +1,8 @@
-// Copyright 2009-2018 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2018, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -23,6 +23,7 @@
 #include "shogun.h"
 #include "shogun_credit_event.h"
 #include "shogun_init_event.h"
+#include "shogun_stat_bundle.h"
 
 using namespace SST;
 using namespace SST::Shogun;
@@ -137,7 +138,7 @@ bool ShogunComponent::tick(SST::Cycle_t currentCycle)
     if( previousCycle + 1 != currentCycle ) {
        zeroEventCycles->addData(currentCycle - previousCycle);
     }
-    
+
     previousCycle = currentCycle;
     eventCycles->addData(1);
 

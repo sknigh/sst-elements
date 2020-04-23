@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -64,7 +64,7 @@ public:
         {"network_inspectors", "Comma separated list of network inspectors to put on output ports.", ""},
         {"oql_track_port",     "Set to true to track output queue length for an entire port.  False tracks per VC.", "false"},
         {"oql_track_remote",   "Set to true to track output queue length including remote input queue.  False tracks only local queue.", "false"},
-        {"num_vns",            "Number of VNs.  Will default to number reqeusted by endpoints if not set.  Must be set in order to use VN remapping."},
+        {"num_vns",            "Number of VNs.","2"},
         {"vn_remap",           "Array that specifies the vn remapping for each node in the systsm."},
         {"vn_remap_shm",       "Name of shared memory region for vn remapping.  If empty, no remapping is done", ""},
         {"debug",              "Turn on debugging for router. Set to 1 for on, 0 for off.", "0"}
@@ -88,7 +88,7 @@ public:
         {"XbarArb", "Crossbar arbitration", "SST::Merlin::XbarArbitration" },
         {"portcontrol", "PortControl blocks", "SST::Merlin::PortInterface" }
     )
-    
+
 private:
     static int num_routers;
     static int print_debug;
@@ -99,11 +99,10 @@ private:
     std::string vn_remap_shm;
     int vn_remap_shm_size;
     int num_vcs;
-    bool vcs_initialized;
-        
+
     Topology* topo;
     XbarArbitration* arb;
-    
+
     PortInterface** ports;
     internal_router_event** vc_heads;
     int* xbar_in_credits;
@@ -121,14 +120,14 @@ private:
     /* int output_buf_size; */
     UnitAlgebra input_buf_size;
     UnitAlgebra output_buf_size;
-    
+
     Cycle_t unclocked_cycle;
     std::string xbar_bw;
     TimeConverter* xbar_tc;
     Clock::Handler<hr_router>* my_clock_handler;
 
     std::vector<std::string> inspector_names;
-    
+
     bool clock_handler(Cycle_t cycle);
     // bool debug_clock_handler(Cycle_t cycle);
     static void sigHandler(int signal);
@@ -137,11 +136,11 @@ private:
     Statistic<uint64_t>** xbar_stalls;
 
     Output& output;
-    
+
 public:
     hr_router(ComponentId_t cid, Params& params);
     ~hr_router();
-    
+
     void init(unsigned int phase);
     void complete(unsigned int phase);
     void setup();
@@ -153,10 +152,7 @@ public:
 
     void sendTopologyEvent(int port, TopologyEvent* ev);
     void recvTopologyEvent(int port, TopologyEvent* ev);
-    
-    void reportRequestedVNs(int port, int vns);
-    void reportSetVNs(int port, int vns);
-    
+
     void dumpState(std::ostream& stream);
     void printStatus(Output& out);
 

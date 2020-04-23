@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,10 +28,9 @@ template< class TYPE >
 class EmberShmemAddGenerator : public EmberShmemGenerator {
 
 public:
-	EmberShmemAddGenerator(SST::Component* owner, Params& params) : EmberShmemGenerator(owner, params, "" ) {}
 	EmberShmemAddGenerator(SST::ComponentId_t id, Params& params) :
-		EmberShmemGenerator(id, params, "ShmemAdd" ), m_phase(0) 
-	{ 
+		EmberShmemGenerator(id, params, "ShmemAdd" ), m_phase(0)
+	{
         int status;
         std::string tname = typeid(TYPE).name();
 		char* tmp = abi::__cxa_demangle(tname.c_str(), NULL, NULL, &status);
@@ -40,7 +39,7 @@ public:
 		free( tmp );
 	}
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
         bool ret = false;
         switch ( m_phase ) {
@@ -61,12 +60,12 @@ public:
             break;
 
         case 2:
-            
+
             m_addr.at<TYPE>(0) = 10;
 
             enQ_barrier_all( evQ );
 
-			m_value = m_my_pe + 11; 
+			m_value = m_my_pe + 11;
             enQ_add( evQ, m_addr, &m_value, (m_my_pe + 1 ) % 2 );
 
             enQ_barrier_all( evQ );
@@ -110,8 +109,7 @@ public:
     )
 
 public:
-    EmberShmemAddIntGenerator( SST::Component* owner, Params& params ) :  EmberShmemAddGenerator(owner, params ) {}
-    EmberShmemAddIntGenerator( SST::ComponentId_t id, Params& params ) : 
+    EmberShmemAddIntGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemAddGenerator(id,  params) { }
 };
 
@@ -131,8 +129,7 @@ public:
     )
 
 public:
-    EmberShmemAddLongGenerator( SST::Component* owner, Params& params ) : EmberShmemAddGenerator(owner, params ) {}
-    EmberShmemAddLongGenerator( SST::ComponentId_t id, Params& params ) : 
+    EmberShmemAddLongGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemAddGenerator(id,  params) { }
 };
 
@@ -152,7 +149,6 @@ public:
     )
 
 public:
-    EmberShmemAddDoubleGenerator( SST::Component* owner, Params& params ) : EmberShmemAddGenerator(owner, params ) {}
     EmberShmemAddDoubleGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemAddGenerator(id,  params) { }
 };
@@ -173,7 +169,6 @@ public:
     )
 
 public:
-    EmberShmemAddFloatGenerator( SST::Component* owner, Params& params ) : EmberShmemAddGenerator(owner, params ) {}
     EmberShmemAddFloatGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemAddGenerator(id,  params) { }
 };

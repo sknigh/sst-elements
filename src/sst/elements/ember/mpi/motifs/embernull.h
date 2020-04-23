@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -62,14 +62,11 @@ public:
     )
 
 public:
-	EmberNullGenerator(SST::Component* owner, Params& params) :
-		EmberMessagePassingGenerator(owner, params, "Null" ) 
-	{ }
 	EmberNullGenerator(SST::ComponentId_t id, Params& params) :
-		EmberMessagePassingGenerator(id, params, "Null" ) 
+		EmberMessagePassingGenerator(id, params, "Null" )
 	{ }
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
 		return true;
 	}

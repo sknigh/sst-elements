@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,14 +28,14 @@ class CircNetworkInspector : public SimpleNetwork::NetworkInspector {
 
 public:
 
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         CircNetworkInspector,
         "merlin",
         "circuit_network_inspector",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "Used to count the number of network circuits (as in 'circuit switched' circuits)",
-        "SST::Interfaces::SimpleNetwork:NetworkInspector")
-    
+        SST::Interfaces::SimpleNetwork::NetworkInspector)
+
 
 private:
     typedef std::pair<SimpleNetwork::nid_t, SimpleNetwork::nid_t> SDPair;
@@ -50,9 +50,11 @@ private:
     static setMap_t setMap;
     static SST::Core::ThreadSafe::Spinlock mapLock;
 public:
-    CircNetworkInspector(SST::Component* parent, SST::Params &params);
+    CircNetworkInspector(SST::ComponentId_t, SST::Params &params, const std::string& sub_id);
 
+#ifndef SST_ENABLE_PREVIEW_BUILD
     void initialize(std::string id);
+#endif
     void finish();
 
     void inspectNetworkData(SimpleNetwork::Request* req);

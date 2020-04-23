@@ -1,9 +1,25 @@
+// Copyright 2009-2020 NTESS. Under the terms
+// of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+//
+// Copyright (c) 2009-2020, NTESS
+// All rights reserved.
+//
+// Portions are copyright of other developers:
+// See the file CONTRIBUTORS.TXT in the top level directory
+// the distribution for more information.
+//
+// This file is part of the SST software package. For license
+// information, see the LICENSE file in the top level directory of the
+// distribution.
 
 #ifndef _H_SHOGUN_STAT_BUNDLE
 #define _H_SHOGUN_STAT_BUNDLE
 
 #include <sst/core/component.h>
 #include <sst/core/statapi/statbase.h>
+
+#include "shogun.h"
 
 using namespace SST;
 
@@ -32,17 +48,17 @@ namespace Shogun {
             free(input_packet_count);
         }
 
-        void registerStatistics(SST::Component* comp)
+        void registerStatistics(ShogunComponent* comp)
         {
             char* subIDName = new char[256];
 
             for (int i = 0; i < port_count; ++i) {
                 sprintf(subIDName, "port%" PRIi32, i);
-                output_packet_count[i] = comp->registerStatistic<uint64_t>("output_packet_count", subIDName);
-                input_packet_count[i] = comp->registerStatistic<uint64_t>("input_packet_count", subIDName);
+                output_packet_count[i] = comp->bundleRegisterStatistic("output_packet_count", subIDName);
+                input_packet_count[i] = comp->bundleRegisterStatistic("input_packet_count", subIDName);
             }
 
-            packetsMoved = comp->registerStatistic<uint64_t>("packets_moved");
+            packetsMoved = comp->bundleRegisterStatistic("packets_moved");
 
             delete[] subIDName;
         }

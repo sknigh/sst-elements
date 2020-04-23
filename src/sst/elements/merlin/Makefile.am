@@ -75,7 +75,13 @@ libmerlin_la_SOURCES = \
 	arbitration/single_arb_rr.h \
 	pymodule.h \
 	pymodule.c \
-	pymerlin.py
+	pymerlin.py \
+	pymerlin-base.py \
+	pymerlin-endpoint.py \
+	topology/pymerlin-topo-dragonfly.py \
+	topology/pymerlin-topo-hyperx.py \
+	topology/pymerlin-topo-fattree.py \
+	topology/pymerlin-topo-mesh.py
 
 EXTRA_DIST = \
 	tests/dragon_128_test.py \
@@ -92,7 +98,18 @@ nobase_sst_HEADERS = \
 
 libmerlin_la_LDFLAGS = -module -avoid-version $(PYTHON_LDFLAGS)
 
-BUILT_SOURCES = pymerlin.inc
+BUILT_SOURCES = \
+	pymerlin.inc \
+	pymerlin-base.inc \
+	pymerlin-endpoint.inc \
+	topology/pymerlin-topo-dragonfly.inc \
+	topology/pymerlin-topo-hyperx.inc \
+	topology/pymerlin-topo-fattree.inc \
+	topology/pymerlin-topo-mesh.inc
+
+install-exec-hook:
+	$(SST_REGISTER_TOOL) SST_ELEMENT_SOURCE     merlin=$(abs_srcdir)
+	$(SST_REGISTER_TOOL) SST_ELEMENT_TESTS      merlin=$(abs_srcdir)/tests
 
 # This sed script converts 'od' output to a comma-separated list of byte-
 # values, suitable for #include'ing into an array definition.
@@ -110,4 +127,4 @@ BUILT_SOURCES = pymerlin.inc
 clean-local: clean-local-check
 .PHONY: clean-local-check
 clean-local-check:
-	-rm -rf pymerlin.inc
+	-rm -rf $(BUILT_SOURCES)

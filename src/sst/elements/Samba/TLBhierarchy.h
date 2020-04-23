@@ -1,8 +1,8 @@
-/// Copyright 2009-2019 NTESS. Under the terms
+/// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // This file is part of the SST software package. For license
@@ -44,7 +44,7 @@
 
 namespace SST { namespace SambaComponent{
 
-	class TLBhierarchy : public ComponentExtension 
+	class TLBhierarchy : public ComponentExtension
 	{
 
 		// This keeps track of which core the TLB belongs to, here we assume typical private TLBs as in current x86 processor
@@ -59,12 +59,7 @@ namespace SST { namespace SambaComponent{
 	    int emulate_faults;
 
 	    // Enable page migration if Opal is used
-		int page_migration;
-
-		// Page migration policy
-		PageMigrationType page_migration_policy;
-
-		uint64_t memory_size;
+		int page_placement;
 
 	    int max_shootdown_width;
 
@@ -72,8 +67,6 @@ namespace SST { namespace SambaComponent{
 
 
 		SST::Link * to_cpu;
-
-		SST::Link * to_opal;
 
 		std::map<int, TLB *> TLB_CACHE;
 
@@ -83,7 +76,7 @@ namespace SST { namespace SambaComponent{
 
 		std::string clock_frequency_str;
 
-		// Holds the current time 
+		// Holds the current time
 		SST::Cycle_t curr_time;
 
 		// This vector holds the current requests to be translated
@@ -95,11 +88,14 @@ namespace SST { namespace SambaComponent{
 		// This tells TLB hierarchy to invalidate all TLB entries due to TLB Shootdown from other cores
 		int shootdown;
 
-		// This tells TLB hierarchy to invalidate all TLB entries due to TLB Shootdown from the same core
-		int own_shootdown;
+		int shootdown_delay;
+
+		int page_swapping_delay;
+
+		int hasInvalidAddrs;
 
 		// This vector holds the invalidation requests
-		std::list<Address_t> invalid_addrs;
+		std::vector<std::pair<Address_t, int> > invalid_addrs;
 
 		// This vector holds the current requests to be translated
 		std::map<SST::MemHierarchy::MemEventBase *, long long int, MemEventPtrCompare> mem_reqs_sizes;
@@ -108,10 +104,14 @@ namespace SST { namespace SambaComponent{
 		// This mapping is used to track the time spent of translating each request
 		std::map<SST::Event *, uint64_t> time_tracker;
 		// The access latency in ns
-		int latency; 
+		int latency;
 
 		// This represents the maximum number of outstanding requests for this structure
-		int max_outstanding; 
+		int max_outstanding;
+
+		uint64_t timeStamp;
+
+		uint32_t ptw_confined;
 
 		// Holds CR3 value of current context
 		Address_t *CR3;
@@ -135,8 +135,13 @@ namespace SST { namespace SambaComponent{
 		std::map<Address_t,int> * MAPPED_PAGE_SIZE1GB;
 
 		std::map<Address_t,int> *PENDING_PAGE_FAULTS;
+		std::map<Address_t,int> *PENDING_PAGE_FAULTS_PGD;
+		std::map<Address_t,int> *PENDING_PAGE_FAULTS_PUD;
+		std::map<Address_t,int> *PENDING_PAGE_FAULTS_PMD;
+		std::map<Address_t,int> *PENDING_PAGE_FAULTS_PTE;
 		std::map<Address_t,int> *PENDING_SHOOTDOWN_EVENTS;
 
+		uint64_t memory_size;
 
 		public:
 
@@ -147,12 +152,11 @@ namespace SST { namespace SambaComponent{
 		void handleEvent_CACHE(SST::Event * event);
 		// Handling Events arriving from CPU, mostly requests from Ariel
 		void handleEvent_CPU(SST::Event * event);
-		// Handling Events arriving from Opal, the memory manager
-		void handleEvent_OPAL(SST::Event * event);
 
 
 		void setPageTablePointers( Address_t * cr3, std::map<Address_t, Address_t> * pgd,  std::map<Address_t, Address_t> * pud,  std::map<Address_t, Address_t> * pmd, std::map<Address_t, Address_t> * pte,
-				std::map<Address_t,int> * gb,  std::map<Address_t,int> * mb,  std::map<Address_t,int> * kb, std::map<Address_t,int> * pr, std::map<Address_t,int> * sr)
+				std::map<Address_t,int> * gb,  std::map<Address_t,int> * mb,  std::map<Address_t,int> * kb, std::map<Address_t,int> * pr, int *cr3I, std::map<Address_t,int> *pf_pgd,
+				std::map<Address_t,int> *pf_pud,  std::map<Address_t,int> *pf_pmd, std::map<Address_t,int> * pf_pte)
 		{
 	                CR3 = cr3;
                         PGD = pgd;
@@ -163,10 +167,14 @@ namespace SST { namespace SambaComponent{
                         MAPPED_PAGE_SIZE2MB = mb;
                         MAPPED_PAGE_SIZE1GB = gb;
                         PENDING_PAGE_FAULTS = pr;
-                        PENDING_SHOOTDOWN_EVENTS = sr;
+                        PENDING_PAGE_FAULTS_PGD = pf_pgd;
+						PENDING_PAGE_FAULTS_PUD = pf_pud;
+						PENDING_PAGE_FAULTS_PMD = pf_pmd;
+						PENDING_PAGE_FAULTS_PTE = pf_pte;
 
 			if(PTW!=nullptr)
-				PTW->setPageTablePointers(cr3, pgd, pud, pmd, pte, gb, mb, kb, pr, sr);
+				//PTW->setPageTablePointers(cr3, pgd, pud, pmd, pte, gb, mb, kb, pr, sr);
+				PTW->setPageTablePointers(cr3, pgd, pud, pmd, pte, gb, mb, kb, pr, cr3I, pf_pgd, pf_pud, pf_pmd, pf_pte);
 
 		}
 		// Constructor for component
@@ -186,20 +194,18 @@ namespace SST { namespace SambaComponent{
 		//	std::map<int, Statistic<uint64_t>*> statTLBHits;
 
 		//	std::map<int, Statistic<uint64_t>*> statTLBMisses;
-		// Sets the to cache link, this should be called from Samba component when creating links between TLB structures and CPUs 
+		// Sets the to cache link, this should be called from Samba component when creating links between TLB structures and CPUs
 		bool setCacheLink(SST::Link * TO_CACHE) { to_cache = TO_CACHE; return true;}
 
-		// Sets the to cpu link, this should be called from Samba component when creating links between TLB structures and CPUs 
+		// Sets the to cpu link, this should be called from Samba component when creating links between TLB structures and CPUs
 		bool setCPULink(SST::Link * TO_CPU) { to_cpu = TO_CPU; return true;}
 
 		// Setting the memory link of the page table walker
 		bool setPTWLink(SST::Link * l) { PTW->set_ToMem(l); return true;}
 
-		// Setting the link to the memory manager
-		bool setOpalLink(SST::Link * l) { to_opal = l ; PTW->set_ToOpal(l); return true;}
-
 		// Setting the line size for the page table walker's dummy requests
 		void setLineSize(uint64_t size) { PTW->setLineSize(size); }
+
 
 	};
 

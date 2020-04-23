@@ -6,22 +6,20 @@ quiet = True
 debugAll = 0
 debugL1 = max(debugAll, 0)
 debugL2 = max(debugAll, 0)
-debugHBMDC = max(debugAll, 0)
-debugHBMDCNIC = max(debugAll, 0)
 debugDDRDC = max(debugAll, 0)
 debugMemCtrl = max(debugAll, 0)
 debugDDRMemCtrl = max(debugMemCtrl, 0)
 debugHBMMemCtrl = max(debugMemCtrl, 0)
 debugNIC = max(debugAll, 0)
-debugLev = 3
+debugLev = 10
 
 # Parameters
 hbmCapacity = 8    # In GB
 ddrCapacity = 48    # In GB -> needs to be 2^x * 6
 hbmPageSize = 4     # In KB
-hbmNumPages = hbmCapacity * 1024 * 1024 / hbmPageSize
+hbmNumPages = hbmCapacity * 1024 * 1024 // hbmPageSize
 ddrPageSize = 4     # In KB
-ddrNumPages = ddrCapacity * 1024 * 1024 / ddrPageSize
+ddrNumPages = ddrCapacity * 1024 * 1024 // ddrPageSize
 
 corecount = 72
 core_clock = "2GHz"
@@ -215,15 +213,15 @@ class DDRBuilder:
 
     def build(self, nodeID):
         if not quiet:
-            print "Creating DDR controller " + str(self.next_ddr_id) + " out of " + str(self.ddr_count) + " on node " + str(nodeID) + "..."
-            print " - Capacity: " + str(self.mem_capacity / self.ddr_count) + " per DDR."
+            print("Creating DDR controller " + str(self.next_ddr_id) + " out of " + str(self.ddr_count) + " on node " + str(nodeID) + "...")
+            print(" - Capacity: " + str(self.mem_capacity // self.ddr_count) + " per DDR.")
 
         mem = sst.Component("ddr_" + str(self.next_ddr_id), "memHierarchy.MemController")
         mem.addParams(ddr_mem_params)
 
         membk = mem.setSubComponent("backend", "memHierarchy.timingDRAM")
         membk.addParams(ddr_td_backend_params)
-        membk.addParams({ "mem_size" : str(self.mem_capacity / self.ddr_count) + "B" })
+        membk.addParams({ "mem_size" : str(self.mem_capacity // self.ddr_count) + "B" })
 
         mem.addParams({
             "addr_range_start" : self.start_addr + (64 * self.next_ddr_id),
@@ -260,7 +258,7 @@ class DCBuilder:
         myEnd = self.memCapacity - (self.dc_count *64) + myStart + 63
             
         if not quiet:
-            print "\tCreating dc with start: " + str(myStart) + " end: " + str(myEnd)
+            print("\tCreating dc with start: " + str(myStart) + " end: " + str(myEnd))
         
         # "Home" memory for each dc just desginates where it is caching its entries:
         # ddr0: 0-2, 6-8
@@ -279,7 +277,6 @@ class DCBuilder:
             "addr_range_end" : myEnd,
             "interleave_step" : str(self.dc_count * 64) + "B",
             "interleave_size" : "64B",
-            "net_memory_name" : "ddr_" + str(ddrnum),
         })
 
         # Define DC NIC
@@ -307,15 +304,15 @@ class HBMBuilder:
 
     def build(self, nodeID):
         if not quiet:
-            print "Creating HBM controller " + str(self.next_hbm_id) + " out of " + str(self.hbm_count) + " on node " + str(nodeID) + "..."
-            print " - Capacity: " + str(self.memCapacity / self.hbm_count) + " per HBM."
+            print("Creating HBM controller " + str(self.next_hbm_id) + " out of " + str(self.hbm_count) + " on node " + str(nodeID) + "...")
+            print(" - Capacity: " + str(self.memCapacity // self.hbm_count) + " per HBM.")
 
         mem = sst.Component("hbm_" + str(self.next_hbm_id), "memHierarchy.MemCacheController")
         mem.addParams(hbm_memcache_td_params)
         
         membk = mem.setSubComponent("backend", "memHierarchy.timingDRAM")
         membk.addParams(hbm_td_backend_params)
-        membk.addParams({ "mem_size" : str(self.memCapacity / self.hbm_count) + "B" })
+        membk.addParams({ "mem_size" : str(self.memCapacity // self.hbm_count) + "B" })
 
         memLink = sst.Link("hbm_link_" + str(self.next_hbm_id))
 
@@ -385,7 +382,7 @@ class TileBuilder:
         tileLeftL1.addParams(l1_cache_params)
 
         if not quiet:
-            print "Creating core " + str(self.next_core_id) + " on tile: " + str(self.next_tile_id) + "..."
+            print("Creating core " + str(self.next_core_id) + " on tile: " + str(self.next_tile_id) + "...")
 
         leftL1L2link = sst.Link("l1cache_link_" + str(self.next_core_id))
         leftL1L2link.connect( (l2bus, "high_network_0", mesh_link_latency),
@@ -426,7 +423,7 @@ class TileBuilder:
         rightCoreL1link.setNoCut()
 
         if not quiet:
-            print "Creating core " + str(self.next_core_id) + " on tile: " + str(self.next_tile_id) + "..."
+            print("Creating core " + str(self.next_core_id) + " on tile: " + str(self.next_tile_id) + "...")
         
         rightL1L2link = sst.Link("l1cache_link_" + str(self.next_core_id))
         rightL1L2link.connect( (l2bus, "high_network_1", mesh_link_latency),
@@ -508,7 +505,7 @@ def setNode(nodeId, rtrreq, rtrack, rtrfwd, rtrdata):
     dataport1.connect( (rtrdata, "local1", mesh_link_latency), dcdata)
 
 
-print "Building model..."
+print("Building model...")
 
 # Build the mesh using Kingsley -> duplicate mesh for data & control
 kRtrReq=[]
@@ -570,4 +567,4 @@ sst.enableAllStatisticsForAllComponents({"type":"sst.AccumulatorStatistic"})
 #        "separator" : ", "
 #} )
 
-print "Model complete"
+print("Model complete")

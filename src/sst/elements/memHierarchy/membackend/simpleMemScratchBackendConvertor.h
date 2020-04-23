@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -52,7 +52,6 @@ public:
     SST_ELI_DOCUMENT_SUBCOMPONENT_SLOTS(SCRATCHBACKENDCONVERTOR_ELI_SLOTS)
 
 /* Begin class definition */
-    SimpleMemScratchBackendConvertor(Component *comp, Params &params);
     SimpleMemScratchBackendConvertor(ComponentId_t id, Params &params);
 
     virtual bool issue( MemReq* req );

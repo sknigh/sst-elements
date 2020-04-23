@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -55,9 +55,9 @@ CoherentMemController::CoherentMemController(ComponentId_t id, Params &params) :
  */
 void CoherentMemController::init(unsigned int phase) {
     link_->init(phase);
-    
+
     region_ = link_->getRegion(); // This can change during init, but should stabilize before we start receiving init data
-    
+
     /* Inherit region from our source(s) */
     if (!phase) {
         /* Announce our presence on link */
@@ -81,7 +81,7 @@ void CoherentMemController::setup(void) {
 
 /*
  * Overrides MemController function
- * Intercept InitCoherence message to set directory_ and lineSize_ 
+ * Intercept InitCoherence message to set directory_ and lineSize_
  */
 void CoherentMemController::processInitEvent(MemEventInit* me) {
     if (Command::NULLCMD == me->getCmd()) {
@@ -96,7 +96,7 @@ void CoherentMemController::processInitEvent(MemEventInit* me) {
 }
 
 
-/* 
+/*
  * Overrides MemController function
  * msgQueue holds events generated in CoherentMemController
  *   such as shootdowns and nack retries
@@ -136,15 +136,15 @@ bool CoherentMemController::clock(Cycle_t cycle) {
 }
 
 
-/* 
- * Link handler, overrides MemController's 
+/*
+ * Link handler, overrides MemController's
  */
 void CoherentMemController::handleEvent(SST::Event* event) {
     if (!clockOn_) {
         Cycle_t cycle = turnClockOn();
         memBackendConvertor_->turnClockOn(cycle);
     }
-    
+
     MemEventBase * ev = static_cast<MemEventBase*>(event);
 
     if (is_debug_event(ev)) {
@@ -152,7 +152,7 @@ void CoherentMemController::handleEvent(SST::Event* event) {
     }
 
     Command cmd = ev->getCmd();
-    
+
     switch (cmd) {
         case Command::GetS:
         case Command::GetX:
@@ -186,7 +186,7 @@ void CoherentMemController::handleEvent(SST::Event* event) {
 }
 
 
-/* 
+/*
  * Handle request events
  */
 void CoherentMemController::handleRequest(MemEvent * ev) {
@@ -213,7 +213,7 @@ void CoherentMemController::handleRequest(MemEvent * ev) {
 /*
  * Handle replacement events
  * Special case when replacement races with shootdown because
- * we may not receive an Ack for the shootdown or may not receive 
+ * we may not receive an Ack for the shootdown or may not receive
  * data with the Ack
  */
 void CoherentMemController::handleReplacement(MemEvent * ev) {
@@ -267,17 +267,50 @@ void CoherentMemController::handleReplacement(MemEvent * ev) {
 }
 
 
-/* 
+/*
  * Handle Flush request
  * FlushInv means all caches have evicted the block
  * Flush is just a writeback of dirty data
- *
+ * Resolve shootdown races
  */
 void CoherentMemController::handleFlush(MemEvent * ev) {
     if (ev->isAddrGlobal()) {
         ev->setBaseAddr(translateToLocal(ev->getBaseAddr()));
         ev->setAddr(translateToLocal(ev->getAddr()));
     }
+
+    /* Resolve races with shootdowns
+     * - Directory handles a FetchInv that raced with FlushLineInv by sending AckInv immediately
+     * - Directory handles a FetchInv that raced with FlushLine by invalidating caches and eventually responding with AckInv
+     * - Caches handle a FetchInv that raced with FlushLineInv by dropping the FetchInv
+     * - Caches handle a FetchInv that raced with FlushLine by invalidating caches and eventually responding with AckInv
+     */
+    if (mshr_.find(ev->getBaseAddr()) != mshr_.end()) {
+        MSHREntry * entry = &(mshr_.find(ev->getBaseAddr())->second.front());
+        if (entry->cmd == Command::CustomReq && entry->shootdown) { // Race with shootdown
+            if (!directory_) {
+                if (ev->getCmd() == Command::FlushLineInv) {
+                    MemEvent * resp = new MemEvent(ev->getSrc(), ev->getBaseAddr(), ev->getBaseAddr(), Command::AckInv);
+                    if (ev->getPayloadSize() != 0) {
+                        resp->setDirty(ev->getDirty());
+                        resp->setPayload(ev->getPayload());
+                        ev->setPayload(0, nullptr);
+                        ev->setDirty(false);
+                        handleFetchResp(resp);
+                    } else {
+                        handleAckInv(resp);
+                    }
+                } else { // FlushLine -> we'll get an AckInv but it might not have data
+                    if (ev->getPayloadSize() != 0) {
+                        entry->writebacks.insert(ev->getID()); // We're about to writeback, just make sure we tell the shootdown about it
+                    }
+                }
+            } else {    // Directory
+                if (ev->getPayloadSize() != 0)
+                    entry->writebacks.insert(ev->getID());
+            }
+        }
+    } // Shootdown races handled
 
     MemEvent* put = NULL;
     if (ev->getPayloadSize() != 0) {
@@ -302,7 +335,7 @@ void CoherentMemController::handleFlush(MemEvent * ev) {
             ev->setCmd(Command::FlushLine);
         }
         memBackendConvertor_->handleMemEvent(ev);
-    } else {
+    } else { // TODO resolve potential race with a not-yet-started shootdown sitting in the MSHR?
         mshr_.find(ev->getBaseAddr())->second.push_back(MSHREntry(ev->getID(), ev->getCmd()));
     }
 }
@@ -345,7 +378,7 @@ void CoherentMemController::handleFetchResp(MemEvent * ev) {
     }
 
     Addr baseAddr = ev->getBaseAddr();
-    
+
     /* Update cache status */
     cacheStatus_.at(baseAddr/lineSize_) = false;
 
@@ -376,7 +409,7 @@ void CoherentMemController::handleFetchResp(MemEvent * ev) {
 
 
 /* Handle NACKs
- * Only invalidations can be nacked since they are they 
+ * Only invalidations can be nacked since they are they
  * only request the MemController sends to caches
  */
 void CoherentMemController::handleNack(MemEvent * ev) {
@@ -442,7 +475,7 @@ void CoherentMemController::handleCustomCmd(MemEventBase * evb) {
 }
 
 
-/* 
+/*
  * Do a shootdown for the specified address
  * Return whether shootdown was needed or not
  */
@@ -462,7 +495,7 @@ bool CoherentMemController::doShootdown(Addr addr, MemEventBase * ev) {
 
 /* Handle MemResponse */
 void CoherentMemController::handleMemResponse(SST::Event::id_type id, uint32_t flags) {
-    std::map<SST::Event::id_type,OutstandingEvent>::iterator it = 
+    std::map<SST::Event::id_type,OutstandingEvent>::iterator it =
       outstandingEventList_.find(id);
     if( it == outstandingEventList_.end() ){
       dbg.fatal(CALL_INFO, -1, "Coherent Memory controller (%s) received unrecgonized response ID: %" PRIu64 ", %" PRIu32 "", getName().c_str(), id.first, id.second);
@@ -578,9 +611,9 @@ void CoherentMemController::updateMSHR(Addr baseAddr) {
     /* Delete address if no more events */
     if (mshr_.find(baseAddr)->second.empty()) {
         mshr_.erase(baseAddr);
-    
+
     /* Start next event */
-    } else { 
+    } else {
         MSHREntry * entry = &(mshr_.find(baseAddr)->second.front());
         OutstandingEvent * outEv = &(outstandingEventList_.find(entry->id)->second);
 
@@ -589,7 +622,7 @@ void CoherentMemController::updateMSHR(Addr baseAddr) {
             if (entry->shootdown && doShootdown(baseAddr, outEv->request)) { /* Start shootdown */
                 return;
             } else {
-                entry->shootdown = false; 
+                entry->shootdown = false;
                 if (entry->writebacks.empty() && outEv->decrementCount() == 0) { /* Command ready to issue */
                     CustomCmdInfo * info = customCommandHandler_->ready(outEv->request);
                     memBackendConvertor_->handleCustomEvent(info);
@@ -623,7 +656,7 @@ void CoherentMemController::replayMemEvent(MemEvent * ev) {
             memBackendConvertor_->handleMemEvent(ev);
             break;
         default:
-            dbg.fatal(CALL_INFO, -1, "%s, Error: Attempt to replay unknown event: %s. Time = %" PRIu64 "ns.\n", 
+            dbg.fatal(CALL_INFO, -1, "%s, Error: Attempt to replay unknown event: %s. Time = %" PRIu64 "ns.\n",
                     getName().c_str(), ev->getVerboseString().c_str(), getCurrentSimTimeNano());
             break;
     }

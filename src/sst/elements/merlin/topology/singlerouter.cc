@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -23,12 +23,6 @@
 using namespace SST::Merlin;
 
 #define DPRINTF( fmt, args...) __DBG( DBG_NETWORK, topo_singlerouter, fmt, ## args )
-
-topo_singlerouter::topo_singlerouter(Component* comp, Params& params) :
-    Topology(comp)
-{
-    num_ports = params.find<int>("num_ports");
-}
 
 topo_singlerouter::topo_singlerouter(ComponentId_t cid, Params& params, int num_ports, int rtr_id) :
     Topology(cid),
@@ -51,7 +45,7 @@ internal_router_event*
 topo_singlerouter::process_input(RtrEvent* ev)
 {
     internal_router_event* ire = new internal_router_event(ev);
-    ire->setVC(ev->request->vn);
+    ire->setVC(ire->getVN());
     return ire;
 }
 

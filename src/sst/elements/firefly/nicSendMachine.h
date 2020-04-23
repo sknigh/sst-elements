@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -11,7 +11,7 @@
 //
 // This file is part of the SST software package. For license
 // information, see the LICENSE file in the top level directory of the
-// distribution.   
+// distribution.
 
 
 #include <sst/core/interfaces/simpleNetwork.h>
@@ -31,17 +31,17 @@ class SendMachine {
             const char* prefix() { return m_prefix.c_str(); }
           public:
 
-            OutQ( Nic& nic, Output& output, int myId, int maxQsize ) : 
+            OutQ( Nic& nic, Output& output, int myId, int maxQsize ) :
                 m_nic(nic), m_dbg(output), m_id(myId), m_maxQsize(maxQsize),
                 m_wakeUpCallback(NULL), m_lastEnq(0), m_enqCnt(0), m_qCnt(0)
             {
                 m_prefix = "@t:"+ std::to_string(nic.getNodeId()) +":Nic::SendMachine" + std::to_string(myId) + "::OutQ::@p():@l ";
             }
 
-            void enque( FireflyNetworkEvent* ev, int dest, Callback );
+            void enque( FireflyNetworkEvent* ev, int vn, int dest, Callback );
 
-            bool isFull() { 
-                return m_qCnt == m_maxQsize; 
+            bool isFull() {
+                return m_qCnt == m_maxQsize;
             }
 
             void wakeMeUp( Callback  callback) {
@@ -63,7 +63,7 @@ class SendMachine {
 				if ( callback ) {
 					callback();
 				}
-             
+
 				--m_qCnt;
             }
 
@@ -87,7 +87,7 @@ class SendMachine {
           public:
             typedef std::function<void()> Callback;
 
-            InQ(Nic& nic, Output& output, int myId, OutQ* outQ, int maxQsize ) : 
+            InQ(Nic& nic, Output& output, int myId, OutQ* outQ, int maxQsize ) :
                 m_nic(nic), m_dbg(output), m_outQ(outQ), m_numPending(0),m_maxQsize(maxQsize), m_callback(NULL),
                 m_pktNum(0), m_expectedPkt(0)
             {
@@ -98,25 +98,26 @@ class SendMachine {
                 return m_numPending == m_maxQsize;
             }
 
-            void  enque( int unit, int pid, std::vector< MemOp >* vec, FireflyNetworkEvent* ev, int dest, Callback callback = NULL );
-        
+            void  enque( int unit, int pid, std::vector< MemOp >* vec, FireflyNetworkEvent* ev, int vn, int dest, Callback callback = NULL );
+
             void wakeMeUp( Callback  callback) {
                 assert(!m_callback);
                 m_callback = callback;
             }
 
           private:
-            struct Entry { 
-                Entry( FireflyNetworkEvent* ev, int dest, Callback callback, uint64_t pktNum ) : 
-                            ev(ev), dest(dest), callback(callback), pktNum(pktNum) {}
+            struct Entry {
+                Entry( FireflyNetworkEvent* ev, int vn, int dest, Callback callback, uint64_t pktNum ) :
+                            ev(ev), vn(vn), dest(dest), callback(callback), pktNum(pktNum) {}
                 FireflyNetworkEvent* ev;
+                int vn;
                 int dest;
                 Callback callback;
                 uint64_t pktNum;
             };
 
-            void ready( FireflyNetworkEvent* ev, int dest, Callback callback, uint64_t pktNum );
-            void ready2( FireflyNetworkEvent* ev, int dest, Callback callback );
+            void ready( FireflyNetworkEvent* ev, int vn, int dest, Callback callback, uint64_t pktNum );
+            void ready2( FireflyNetworkEvent* ev, int vn, int dest, Callback callback );
             void processPending();
 
             Nic&        m_nic;
@@ -134,7 +135,7 @@ class SendMachine {
 
         SendMachine( Nic& nic, int nodeId, int verboseLevel, int verboseMask, int myId,
               int packetSizeInBytes, int pktOverhead, int maxQsize, int unit, bool flag = false ) :
-            m_nic(nic), m_id(myId), m_packetSizeInBytes( packetSizeInBytes - pktOverhead ), 
+            m_nic(nic), m_id(myId), m_packetSizeInBytes( packetSizeInBytes - pktOverhead ),
             m_unit(unit), m_pktOverhead(pktOverhead), m_activeEntry(NULL), m_I_manage( flag ), m_numSent(0)
         {
             char buffer[100];
@@ -145,7 +146,7 @@ class SendMachine {
             m_inQ = new InQ( nic, m_dbg, myId, m_outQ, maxQsize );
         }
 
-        ~SendMachine() { 
+        ~SendMachine() {
 			delete m_outQ;
 			delete m_inQ;
 		}
@@ -154,7 +155,7 @@ class SendMachine {
 
         bool isBusy() {
             return m_activeEntry;
-        }       
+        }
 
         void run( SendEntryBase* entry ) {
             m_dbg.debug(CALL_INFO,2,NIC_DBG_SEND_MACHINE, "new stream\n");

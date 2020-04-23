@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -42,9 +42,10 @@ class LoopBack : public SST::Component  {
     )
     SST_ELI_DOCUMENT_PARAMS(
         {"numCores","Sets the number cores to create links to", "1"},
+        {"nicsPerNode","", "1"},
     )
     SST_ELI_DOCUMENT_PORTS(
-        {"core%(num_vNics)d", "Ports connected to the network driver", {}}
+        {"nic%(nicsPerNode)dcore%(num_vNics/nicsPerNode)d", "Ports connected to the network driver", {}}
     )
 
     LoopBack(ComponentId_t id, Params& params );
@@ -52,7 +53,7 @@ class LoopBack : public SST::Component  {
     void handleCoreEvent( Event* ev, int );
 
   private:
-    std::vector<Link*>          m_links;   
+    std::vector<Link*>          m_links;
 };
 
 }

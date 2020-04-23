@@ -9,7 +9,7 @@ def read_arguments():
 def setup_config_params():
     l_params = {}
     if g_boolUseDefaultConfig:
-        print "Config file not found... using default configuration"
+        print("Config file not found... using default configuration")
         l_params = {
             "clockCycle": "1ns",
             "stopAtCycle": "10us",
@@ -229,6 +229,7 @@ comp_chiprtr.addParams({
       "id" : "0",
       "topology" : "merlin.singlerouter"
 })
+comp_chiprtr.setSubComponent("topology","merlin.singlerouter")
 comp_dirctrl = sst.Component("dirctrl", "memHierarchy.DirectoryController")
 comp_dirctrl.addParams({
       "coherence_protocol" : "MSI",

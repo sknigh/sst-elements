@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -16,17 +16,19 @@
 #ifndef COMPONENTS_FIREFLY_MEMORY_MODEL_H
 #define COMPONENTS_FIREFLY_MEMORY_MODEL_H
 
+namespace SST {
+namespace Firefly {
+
 class MemoryModel : public SubComponent {
 
 public:
 
-	SST_ELI_REGISTER_SUBCOMPONENT_API(MemoryModel)
+	SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Firefly::MemoryModel)
 
     typedef std::function<void()> Callback;
 
 #include "memOp.h"
 
-    MemoryModel( Component* comp ) : SubComponent(comp) {}
     MemoryModel( ComponentId_t id ) : SubComponent(id) {}
 
     virtual void printStatus( Output& out, int id ) { }
@@ -34,4 +36,6 @@ public:
 	virtual void schedNicCallback( int unit, int pid, std::vector< MemOp >* ops, Callback callback ) = 0;
 };
 
+} // namespace Firefly
+} // namespace SST
 #endif

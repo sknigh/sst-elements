@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -37,14 +37,13 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-	EmberShmemBarrierGenerator(SST::Component* owner, Params& params) : EmberShmemGenerator(owner, params, "" ) {}
 	EmberShmemBarrierGenerator(SST::ComponentId_t id, Params& params) :
-		EmberShmemGenerator(id, params, "ShmemBarrier" ), m_phase(-2) 
-	{ 
+		EmberShmemGenerator(id, params, "ShmemBarrier" ), m_phase(-2)
+	{
         m_count = (uint32_t) params.find("arg.iterations", 1);
     }
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
         if ( m_phase == -2 ) {
             enQ_init( evQ );

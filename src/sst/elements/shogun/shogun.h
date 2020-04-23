@@ -1,8 +1,8 @@
-// Copyright 2009-2018 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2018, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -24,10 +24,11 @@
 #include "arb/shogunarb.h"
 #include "shogun_event.h"
 #include "shogun_q.h"
-#include "shogun_stat_bundle.h"
 
 namespace SST {
 namespace Shogun {
+
+class ShogunStatisticsBundle;
 
 class ShogunComponent : public SST::Component {
 public:
@@ -118,6 +119,13 @@ private:
     TimeConverter* tc;
     Clock::HandlerBase* clockTickHandler;
     bool handlerRegistered;
+
+    friend class ShogunStatisticsBundle;
+    Statistic<uint64_t>* bundleRegisterStatistic(std::string name, std::string sub_id = std::string("")) {
+        return registerStatistic<uint64_t>(name,sub_id);
+    }
+
+
 };
 
 

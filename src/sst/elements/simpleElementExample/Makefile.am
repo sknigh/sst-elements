@@ -26,12 +26,16 @@ libsimpleElementExample_la_SOURCES = \
 	simpleLookupTableComponent.cc \
 	simpleSubComponent.h \
 	simpleSubComponent.cc \
-	simpleSubComponentLegacy.h \
-	simpleSubComponentLegacy.cc \
 	simpleModule.h \
 	simpleModule.cc \
 	simpleParamComponent.h \
 	simpleParamComponent.cc
+
+deprecated_libsimpleElementExample_sources =
+
+if !SST_ENABLE_PREVIEW_BUILD
+libsimpleElementExample_la_SOURCES += $(deprecated_libsimpleElementExample_sources)
+endif
 
 EXTRA_DIST = \
     README \
@@ -61,21 +65,21 @@ EXTRA_DIST = \
     tests/subcomponent_tests/test_sc_2uu.py \
     tests/subcomponent_tests/test_sc_u2a.py \
     tests/subcomponent_tests/test_sc_ua.py \
-    tests/subcomponent_tests/test_sc_uu.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_2nl.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_n2l.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_n.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_2l.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_2nn.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_n2n.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_2n2l.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_2n.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_nl.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_2n2n.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_l.py \
-    tests/subcomponent_tests/legacy/test_sc_legacy_nn.py
+    tests/subcomponent_tests/test_sc_uu.py
+
+
+deprecated_EXTRA_DIST = 
+
+if !SST_ENABLE_PREVIEW_BUILD
+EXTRA_DIST += $(deprecated_EXTRA_DIST)
+endif
+
 
 libsimpleElementExample_la_LDFLAGS = -module -avoid-version
+
+install-exec-hook:
+	$(SST_REGISTER_TOOL) SST_ELEMENT_SOURCE     simpleElementExample=$(abs_srcdir)
+	$(SST_REGISTER_TOOL) SST_ELEMENT_TESTS      simpleElementExample=$(abs_srcdir)/tests
 
 ##########################################################################
 ##########################################################################

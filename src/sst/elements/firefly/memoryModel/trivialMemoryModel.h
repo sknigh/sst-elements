@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -18,6 +18,9 @@
 
 #include "memoryModel/memoryModel.h"
 
+namespace SST {
+namespace Firefly {
+
 class TrivialMemoryModel : public MemoryModel {
 
     class SelfEvent : public SST::Event {
@@ -29,41 +32,53 @@ class TrivialMemoryModel : public MemoryModel {
 
 public:
 
-    TrivialMemoryModel( Component* comp, Params& params ) : MemoryModel(comp) 
+   SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
+        TrivialMemoryModel,
+        "firefly",
+        "TrivialMemory",
+        SST_ELI_ELEMENT_VERSION(1,0,0),
+        "",
+       	SST::Firefly::MemoryModel
+    )
+
+
+    TrivialMemoryModel( ComponentId_t id, Params& params ) : MemoryModel(id)
 	{
-		m_selfLink = comp->configureSelfLink("Nic::TrivialMemoryModel", "1 ns",
+		m_selfLink = configureSelfLink("Nic::TrivialMemoryModel", "1 ns",
         new Event::Handler<TrivialMemoryModel>(this,&TrivialMemoryModel::handleSelfEvent));
-	} 
+	}
     virtual void printStatus( Output& out, int id ) { }
-	virtual void schedHostCallback( int core, std::vector< MemOp >* ops, Callback callback ) { 
+	virtual void schedHostCallback( int core, std::vector< MemOp >* ops, Callback callback ) {
 		for ( size_t i = 0; i < ops->size(); i++ ) {
 			if ( (*ops)[i].callback) {
-					schedCallback( 0, (*ops)[i].callback );	
-			} 
+					schedCallback( 0, (*ops)[i].callback );
+			}
 		}
-		schedCallback( 0, callback );	
+		schedCallback( 0, callback );
 	}
 	virtual void schedNicCallback( int unit, int pid, std::vector< MemOp >* ops, Callback callback ) {
 		for ( size_t i = 0; i < ops->size(); i++ ) {
 			if ( (*ops)[i].callback) {
-					schedCallback( 0, (*ops)[i].callback );	
-			} 
+					schedCallback( 0, (*ops)[i].callback );
+			}
 		}
-		schedCallback( 0, callback );	
-	} 
+		schedCallback( 0, callback );
+	}
 
 private:
 
 	void schedCallback( SimTime_t delay, Callback callback ){
 		m_selfLink->send( delay , new SelfEvent( callback ) );
 	}
-	
+
 	void handleSelfEvent( Event* ev ) {
-		SelfEvent* event = static_cast<SelfEvent*>(ev); 
+		SelfEvent* event = static_cast<SelfEvent*>(ev);
 		event->callback();
 		delete ev;
 	}
 	Link* m_selfLink;
 };
 
+} // namespace Firefly
+} // namespace SST
 #endif
