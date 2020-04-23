@@ -35,6 +35,7 @@ struct Completion {
 	Completion() : count(0)  {}
 	Hermes::MemAddr addr;
 	size_t			count; //can be bytes or operations
+	SimTime_t nicUpdatedAtSimCycle; // this is used for nic to host latecny 
 };	
 
 class Interface : public Hermes::Interface {
@@ -52,7 +53,7 @@ class Interface : public Hermes::Interface {
 	virtual void postOneTimeBuffer( RVMA::VirtAddr, size_t threshold, RVMA::EpochType, Hermes::MemAddr, size_t size, Completion*, Callback* ) = 0;
 
 	virtual void postBuffer( Hermes::MemAddr, size_t size, Completion*, RVMA::Window, Callback* ) = 0;
-	virtual void mwait( Completion*, Callback* ) = 0;
+	virtual void mwait( Completion*, bool blocking, Callback* ) = 0;
 
 };
 
