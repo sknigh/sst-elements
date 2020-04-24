@@ -38,6 +38,7 @@ ShmemNic::ShmemNic(ComponentId_t id, Params &params) : Component(id), m_maxLocal
     tmp =  ((tmp-1u) & ~(4096-1u)) + 4096;
     m_perPeMemSize = params.find<size_t>("perPeMemSize", tmp );
 
+    m_cacheLineSize = params.find<uint64_t>("cacheLineSize",0);
     uint64_t hostQueueInfoBaseAddr  = params.find<uint64_t>("hostQueueInfoBaseAddr", 0 );
     size_t   hostQueueInfoSizePerPe = params.find<size_t>("hostQueueInfoSizePerPe", 64 );
 
@@ -134,8 +135,6 @@ ShmemNic::ShmemNic(ComponentId_t id, Params &params) : Component(id), m_maxLocal
         }
     }
 
-    bool found;
-    bool gotRegion = false;
     m_region.start = m_ioBaseAddr; 
     m_region.end = m_ioBaseAddr + m_perPeMemSize * m_pesPerNode;
     m_region.interleaveSize = 0;
@@ -840,6 +839,7 @@ void ShmemNic::init(unsigned int phase) {
 
     m_region = m_link->getRegion(); // This can change during init, but should stabilize before we start receiving init data
 
+#if 1 
     /* Inherit region from our source(s) */
     if (!phase) {
         /* Announce our presence on link */
@@ -861,6 +861,7 @@ void ShmemNic::init(unsigned int phase) {
             assert(0);
         }
     }
+#endif
 
     m_linkControl->init(phase);
 }
