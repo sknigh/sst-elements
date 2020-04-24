@@ -40,7 +40,6 @@ class Host : public Hermes::OS
         SST::Aurora::Host 
     )
 
-    Host(Component* comp, Params& params) : OS(comp,params) { assert(0); }
     Host(ComponentId_t id, Params& params);
 	~Host() {}
 

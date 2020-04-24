@@ -26,7 +26,6 @@ namespace Aurora {
 class Misc : public Hermes::Misc::Interface
 {
   public:
-  public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         Misc,
         "aurora",
@@ -36,7 +35,6 @@ class Misc : public Hermes::Misc::Interface
         SST::Aurora::Misc 
     )
 
-    Misc(Component* owner, Params&) : Interface(owner) {}
     Misc(ComponentId_t id, Params&) : Interface(id), m_os(NULL), m_callback(NULL) { 
 		std::ostringstream tmp;
 		tmp << this << "-AuroraMiscSelfLink";

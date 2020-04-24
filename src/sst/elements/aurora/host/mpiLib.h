@@ -47,7 +47,6 @@ class MpiLib : public Hermes::MP::Interface
         {"verboseMask","Sets the debug mask",""},
     )
 
-    MpiLib( Component* owner, Params& ) : Interface(owner) { assert(0); }
     MpiLib( ComponentId_t, Params& );
     ~MpiLib() {}
 
