@@ -35,7 +35,6 @@ class NicSubComponent : public SubComponent {
 
     SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Aurora::NicSubComponent)
 
-    NicSubComponent( Component* owner ) : SubComponent(owner) {assert(0);}
     NicSubComponent( ComponentId_t, Params );
 
     virtual void setup() {}
