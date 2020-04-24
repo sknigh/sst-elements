@@ -1,0 +1,140 @@
+
+runCmd() 
+{
+	NIC_SUB=${FOO}Nic
+	PT2PT_LIB=${FOO}MpiPt2PtLib
+
+#set -x
+
+# --print-timing-info \
+#valgrind --log-file=val.out --trace-children=yes \
+
+time sst -n 16 \
+--model-options=" \
+--numCores=$NUM_CORES \
+--platform=$PLATFORM \
+$NETWORK \
+--param=nic:nicSubComponent=aurora.$NIC_SUB \
+--param=ember:aurora.mpiLib.pt2pt.module=aurora.$PT2PT_LIB \
+--param=ember:aurora.mpiLib.pt2pt.${FOO}Lib.verboseLevel=0 \
+--param=ember:aurora.mpiLib.pt2pt.${FOO}Lib.verboseMask=-1 \
+--param=ember:aurora.mpiLib.pt2pt.shortMsgLength=$EAGER \
+--param=ember:aurora.mpiLib.pt2pt.memcpyBandwidth=$MEMCPY_MB \
+--cmdLine=Init \
+--cmdLine=$SWEEP \
+--cmdLine=Fini \
+" \
+./emberLoad.py
+
+}
+
+BW_SWEEP="\
+--cmdLine=\"Ring messagesize=0 iterations=100000\" \
+--cmdLine=\"Ring messagesize=2 iterations=100000\" \
+--cmdLine=\"Ring messagesize=4 iterations=100000\" \
+--cmdLine=\"Ring messagesize=8 iterations=100000\" \
+--cmdLine=\"Ring messagesize=16 iterations=100000\" \
+--cmdLine=\"Ring messagesize=32 iterations=100000\" \
+--cmdLine=\"Ring messagesize=64 iterations=100000\" \
+--cmdLine=\"Ring messagesize=128 iterations=10000\" \
+--cmdLine=\"Ring messagesize=256 iterations=10000\" \
+--cmdLine=\"Ring messagesize=512 iterations=10000\" \
+--cmdLine=\"Ring messagesize=1024 iterations=10000\" \
+--cmdLine=\"Ring messagesize=2048 iterations=10000\" \
+--cmdLine=\"Ring messagesize=4096 iterations=10000\" \
+--cmdLine=\"Ring messagesize=8192 iterations=1000\" \
+--cmdLine=\"Ring messagesize=16384 iterations=1000\" \
+--cmdLine=\"Ring messagesize=32768 iterations=1000\" \
+--cmdLine=\"Ring messagesize=65536 iterations=1000\" \
+--cmdLine=\"Ring messagesize=131072 iterations=1000\" \
+--cmdLine=\"Ring messagesize=262144 iterations=1000\" \
+--cmdLine=\"Ring messagesize=524288 iterations=1000\" \
+--cmdLine=\"Ring messagesize=1048576 iterations=1000\" \
+--cmdLine=\"Ring messagesize=2097152 iterations=1000\" \
+--cmdLine=\"Ring messagesize=4194304 iterations=1000\" \
+--cmdLine=\"Ring messagesize=8388608 iterations=1000\" \
+"\
+
+BARRIER="\"Barrier iterations=1\""
+SWEEP="\"Sweep3D nx=30 ny=30 nz=30 computetime=140 pex=64 pey=128 pez=0 kba=10\""
+HALO="\"Halo3D26 nx=32 ny=32 nz=32 pex=32 pey=16 pez=16\""
+
+PLATFORM=aurora
+NUM_CORES=1
+
+#HYPERX_ALG="DOR-ND"
+HYPERX_ALG="DOAL"
+HYPERX_8K="\
+--numNodes=8192 \
+--topo=hyperx \
+--shape=8x8x8 \
+--param=merlin:hyperx:shape=8x8x8 \
+--param=merlin:num_dims=3 \
+--param=merlin:hyperx:width=2x2x2 \
+--param=merlin:hyperx:local_ports=16 \
+--param=merlin:hyperx:algorithm=$HYPERX_ALG \
+--hostsPerRtr=16 \
+"
+
+DRAGONFLY_8K="\
+--numNodes=8192 \
+--topo=dragonfly \
+--shape=16:32:32:16 \
+--param=merlin:dragonfly:shape=16:32:32:16 \
+--param=merlin:dragonfly:hosts_per_router=16 \
+--param=merlin:dragonfly:intergroup_links=32 \
+--param=merlin:dragonfly:num_groups=16 \
+--param=merlin:dragonfly:routers_per_group=32 \
+--param=merlin:dragonfly:algorithm=minimal \
+"
+
+FATTREE_8K="\
+--numNodes=8192 \
+--topo=fattree \
+--shape=32,32:32,32:8 --param=merlin:fattree:shape=32,32:32,32:8 \
+"
+
+TORUS_64="\
+--numNodes=64 \
+--topo=torus \
+--shape=4x4x4 \
+"
+
+TORUS_4096="\
+--numNodes=4096 \
+--topo=torus \
+--shape=16x16x16 \
+"
+
+TORUS_2="\
+--numNodes=2 \
+--topo=torus \
+--shape=2 \
+"
+
+TORUS_8="\
+--numNodes=8 \
+--topo=torus \
+--shape=2x4 \
+"
+
+#NETWORK=$TORUS_2
+#NETWORK=$DRAGONFLY_8K
+NETWORK=$HYPERX_8K
+
+EAGER=16000
+MEMCPY_MB="10GB/s"
+
+FOO=rdma
+runCmd
+
+#exit
+
+echo 
+
+FOO=rvma
+runCmd
+
+EAGER=1000000
+MEMCPY_MB=0
+runCmd
