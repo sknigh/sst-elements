@@ -60,7 +60,7 @@ cpu_params = {
     "debug": 1,
     "debug_level": 0,
     #"debug_mask": 1 << 0 | 1<< 2 ,
-    "debug_mask": 1<<2, 
+    #"debug_mask": 1<<2,
     "activeThreadsPerNode" : 36,
 }
 
@@ -73,6 +73,11 @@ SpmvMatrixSize = 36 # 144*1
 def calcMyComputeThread( nodeId, threadsPerNode, coreNum ):
     return nodeId * threadsPerNode + coreNum
 
+def configureGups( params, myThread ):    
+	#params['activeThreadsPerNode'] = 1
+	params[ "gupsMemSize" ] = 0x100000
+	return params
+
 def configureSpmv( params, myThread ):    
     params[ "matrix_nx"] = SpmvMatrixSize 
     params[ "matrix_ny"] = SpmvMatrixSize 
@@ -82,6 +87,12 @@ def configureSpmv( params, myThread ):
     params[ "local_row_end" ] = localRowStart + SpmvMatrixSize  / NumComputeThreads
     params[ "firstFamNode" ] = NumComputeNodes 
     params[ "numFamNodes" ] = NumFamNodes 
+
+    if myThread < NumComputeThreads:
+        params[ "computeNode"] = "yes" 
+    else:
+        params[ "computeNode"] = "no" 
+
     return params
 
 
@@ -94,17 +105,10 @@ def createCpuParams( nicId, threadsPerNode, coreNum ):
     # for SHMEM
     params[ "pe"] =  nicId * threadsPerNode + coreNum
 
-    params[ "gupsMemSize" ] = 0x100000
-
     myThread = calcMyComputeThread( nicId, threadsPerNode, coreNum )
-    params = configureSpmv( params, myThread )
-
-    if myThread < NumComputeThreads:
-        params[ "computeNode"] = "yes" 
-    else:
-        params[ "computeNode"] = "no" 
+    #params = configureSpmv( params, myThread )
+    params = configureGups( params, myThread )
     
-    #print params
     return params
 
 nic_params = {
