@@ -39,7 +39,7 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
 	static const char* protoNames[];
 
 	static StreamId genKey( int srcNid, uint16_t srcPid, StreamId streamId ) {
-		return (uint64_t) srcNid << 32 | srcPid << 16 | streamId & 0xffff ;
+		return (uint64_t) srcNid << 32 | srcPid << 16 | (streamId & 0xffff);
 	}
 
   public:
@@ -57,7 +57,6 @@ class RdmaNicSubComponent : public Aurora::NicSubComponent {
         {"verboseMask","Sets the debug mask",""},
     )
 
-    RdmaNicSubComponent( Component* owner, Params& params ) : NicSubComponent(owner) {} 
     RdmaNicSubComponent( ComponentId_t id, Params& params );
 	void setup();
 

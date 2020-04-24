@@ -527,7 +527,7 @@ RdmaNicSubComponent::SelfEvent* RdmaNicSubComponent::processMsgPktStart( Network
 	assert( destPid < m_coreTbl.size() );
 	Core& core = m_coreTbl[destPid];
 
-	m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"srcNid=%d srcPid %d destPid %d steramId=%d\n",
+	m_dbg.debug(CALL_INFO,1,RECV_DEBUG_MASK,"srcNid=%d srcPid %d destPid %d steramId=%" PRIu64 "\n",
 			srcNid, srcPid, destPid, streamId );
 
 	RecvBuf* buffer = NULL;
