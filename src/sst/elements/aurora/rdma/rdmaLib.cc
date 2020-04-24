@@ -21,8 +21,8 @@ using namespace SST::Aurora::RDMA;
 using namespace Hermes;
 
 
-RdmaLib::RdmaLib( Component* owner, Params& params) : 
-	HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >( owner, params )
+RdmaLib::RdmaLib( ComponentId_t id, Params& params) : 
+	HostLib< Hermes::RDMA::Interface, NicCmd, RetvalResp >( id, params )
 {
 	dbg().debug(CALL_INFO,1,2,"\n");
 }
