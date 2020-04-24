@@ -42,7 +42,7 @@ MpiLib::MpiLib( ComponentId_t id, Params& params) : Interface(id), m_retFunctor(
 
 	m_dbg.debug(CALL_INFO,1,0,"pt2pt module name %s\n",moduleName.c_str());
 
-    m_pt2pt = dynamic_cast< Hermes::Mpi::Interface*>( loadAnonymousSubComponent<Hermes::Interface>( moduleName, "",0, ComponentInfo::SHARE_NONE, pt2ptParams ) );
+    m_pt2pt = loadAnonymousSubComponent<Hermes::Mpi::Interface>( moduleName, "",0, ComponentInfo::SHARE_NONE, pt2ptParams );
     assert(m_pt2pt);
 
 	std::ostringstream tmp;
