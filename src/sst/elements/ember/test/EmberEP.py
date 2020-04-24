@@ -108,14 +108,20 @@ class EmberEP( EndPoint ):
             memory.addParam( "nid", nodeID )
             #memory.addParam( "verboseLevel", 1 )
 
-        loopBackName = "loopBack" + str(nodeID//self.nicsPerNode)        
-        if nodeID % self.nicsPerNode == 0:
-            loopBack = sst.Component(loopBackName, "firefly.loopBack")
-            loopBack.addParam( "numCores", self.numCores )
-            loopBack.addParam( "nicsPerNode", self.nicsPerNode )
-            self.loopBackDict[loopBackName] = loopBack 
-        else:
-            loopBack = self.loopBackDict[loopBackName]
+        useFirefly = False 
+        if self.driverParams['os.module'] == 'firefly.hades':   
+            useFirefly = True    
+
+
+        if useFirefly:
+            loopBackName = "loopBack" + str(nodeID//self.nicsPerNode)        
+            if nodeID % self.nicsPerNode == 0:
+                loopBack = sst.Component(loopBackName, "firefly.loopBack")
+                loopBack.addParam( "numCores", self.numCores )
+                loopBack.addParam( "nicsPerNode", self.nicsPerNode )
+                self.loopBackDict[loopBackName] = loopBack 
+            else:
+                loopBack = self.loopBackDict[loopBackName]
 
 
         # Create a motifLog only for one core of the desired node(s)
@@ -125,18 +131,19 @@ class EmberEP( EndPoint ):
         for x in range(self.numCores//self.nicsPerNode):
             ep = sst.Component("nic" + str(nodeID) + "core" + str(x) + "_EmberEP", "ember.EmberEngine")
 
-            os = ep.setSubComponent( "OS", "firefly.hades" )
-            for key, value in list(self.driverParams.items()):
-                if key.startswith("hermesParams."):
+            os = ep.setSubComponent( "OS", self.driverParams['os.module'] )
+            for key, value in self.driverParams.items():
+                if key.startswith(self.driverParams['os.name']):
                     key = key[key.find('.')+1:] 
                     #print (key, value)
                     os.addParam( key,value)
 
-            virtNic = os.setSubComponent( "virtNic", "firefly.VirtNic" )
-            for key, value in list(self.driverParams.items()):
-                if key.startswith(self.driverParams['os.name']+'.virtNic'):
-                    key = key[key.rfind('.')+1:]
-                    virtNic.addParam( key,value)
+            if useFirefly: 
+                virtNic = os.setSubComponent( "virtNic", "firefly.VirtNic" )
+                for key, value in list(self.driverParams.items()):
+                    if key.startswith(self.driverParams['os.name']+'.virtNic'):
+                        key = key[key.rfind('.')+1:]
+                        virtNic.addParam( key,value)
 
             if useFirefly: 
                 proto = os.setSubComponent( "proto", "firefly.CtrlMsgProto" )
@@ -146,9 +153,10 @@ class EmberEP( EndPoint ):
             for key, value in list(self.driverParams.items()):
                 if key.startswith(prefix):
                     key = key[len(prefix):] 
-                    #print (key, value)
-                    proto.addParam( key,value)
-                    process.addParam( key,value)
+                    #print key, value
+                    if useFirefly:
+                        proto.addParam( key,value)
+                        process.addParam( key,value)
 
             ep.addParams(self.motifs)
             if built:
@@ -202,12 +210,17 @@ class EmberEP( EndPoint ):
             nicLink = sst.Link( "nic" + str(nodeID) + "core" + str(x) + "_Link"  )
             nicLink.setNoCut()
 
-            linkName = "loop" + str(nodeID//self.nicsPerNode) + "nic"+ str(nodeID%self.nicsPerNode)+"core" + str(x) + "_Link" 
-            loopLink = sst.Link( linkName ); 
-            loopLink.setNoCut() 
+            if useFirefly:
+                linkName = "loop" + str(nodeID//self.nicsPerNode) + "nic"+ str(nodeID%self.nicsPerNode)+"core" + str(x) + "_Link" 
+                loopLink = sst.Link( linkName ); 
+                loopLink.setNoCut() 
 
 
-            loopLink.connect( (process,'loop','1ns' ),(loopBack,'nic'+str(nodeID%self.nicsPerNode)+'core'+str(x),'1ns'))
+            if useFirefly:
+            	loopLink.connect( (process,'loop','1ns' ),(loopBack,'nic'+str(nodeID%self.nicsPerNode)+'core'+str(x),'1ns'))
+            else:
+                nicToHostLink = sst.Link( "nicToHost" + str(nodeID) + "core" + str(x) + "_Link"  )
+                nicLink.connect( (os,'nic','0ns' ),(nic,'core'+str(x),'0ns'))
 
             if built:
                 memoryLink = sst.Link( "memory" + str(nodeID) + "core" + str(x) + "_Link"  )
