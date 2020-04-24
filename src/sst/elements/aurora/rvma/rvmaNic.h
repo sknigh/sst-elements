@@ -47,7 +47,6 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
         {"verboseMask","Sets the debug mask",""},
     )
 
-    RvmaNicSubComponent( Component* owner, Params& params ) : NicSubComponent(owner) {} 
     RvmaNicSubComponent( ComponentId_t id, Params& params );
 	void setup();
 
@@ -113,7 +112,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		}
 		Buffer& buffer() { return *m_buffer; }
 		Window* getWindow() { return m_window; }
-		int incRcvdPkts() { 
+		void incRcvdPkts() {
 			++m_numRcvdPkts; 
 		}
 		bool isFinished() { return m_buffer->getBytesRcvd() == m_length; }
@@ -377,7 +376,7 @@ class RvmaNicSubComponent : public Aurora::NicSubComponent {
 		}
 
 		uint64_t genKey( int srcNid, uint16_t srcPid, StreamId streamId ) {
-			return (uint64_t) srcNid << 32 | srcPid << 16 | streamId & 0xffff ;
+			return (uint64_t) srcNid << 32 | srcPid << 16 | (streamId & 0xffff );
 		}
 
 		bool activeRecvStream( int srcNid, int srcPid, StreamId streamId ) {

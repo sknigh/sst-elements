@@ -521,7 +521,7 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 	if ( pkt->isHead() ) {
 
 		if ( core.activeRecvStream( srcNid, srcPid, streamId ) ) {
-			m_dbg.fatal(CALL_INFO,-1,"node %d, got a head packet for curretnly active stream from nid=%d pid=%d\n", srcNid, srcPid );
+			m_dbg.fatal(CALL_INFO,-1,"got a head packet for curretnly active stream from nid=%d pid=%d\n", srcNid, srcPid );
 		} 
 
 		int numPkts;
@@ -547,7 +547,7 @@ void RvmaNicSubComponent::processRecvPktStart( NetworkPkt* pkt )
 		stream  = core.findActiveRecvStream( srcNid, srcPid, streamId  );
 
 		if ( NULL  == stream ) {
-			m_dbg.fatal(CALL_INFO,-1,"node %d, couldn't find active stream for nid=%d pid=%d\n", srcNid,srcPid);
+			m_dbg.fatal(CALL_INFO,-1,"couldn't find active stream for nid=%d pid=%d\n", srcNid,srcPid);
 		}
 	}
 	stream->incRcvdPkts();
@@ -594,7 +594,7 @@ void RvmaNicSubComponent::processRecvPktFini( int destPid, RecvStream* stream, N
 		m_dbg.debug(CALL_INFO,1,NIC_DBG_MASK_MSG_LVL1,"success, received msg from node %d pid %d, bytes=%zu completion %p\n",
 				pkt->getSrcNid(), pkt->getSrcPid(), length, completion );
 
-		m_dbg.debug(CALL_INFO,2,1,"buffer filled nBytes=%zu virtAddr=0x%" PRIx64 " backing=%p count=%zu\n",
+		m_dbg.debug(CALL_INFO,2,1,"buffer filled nBytes=%zu virtAddr=0x%" PRIx64 " backing=%#" PRIx64 " count=%zu\n",
 						buffer.getBytesRcvd(), completion->addr.getSimVAddr(), completion->addr.getSimVAddr(), completion->count);
 
 		if ( core.getWaitCmd() ) {
