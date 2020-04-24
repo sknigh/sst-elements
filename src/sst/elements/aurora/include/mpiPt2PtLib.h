@@ -33,7 +33,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
   public:
 
-	MpiPt2Pt(Component* owner, Params& params) : Interface(owner), m_memcpyLatency(0)
+	MpiPt2Pt(ComponentId_t id, Params& params) : Interface(id), m_memcpyLatency(0)
 	{
 		m_shortMsgLength = params.find<size_t>("shortMsgLength",4096);
 		m_numRecvBuffers = params.find<int>("numRecvBuffers",32);
@@ -42,7 +42,7 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
 
     	std::ostringstream tmp;
     	tmp << this << "-AuroraMpiPt2PtLibSelfLink";
-    	m_selfLink = owner->configureSelfLink(tmp.str(), "1 ns", new Event::Handler<MpiPt2Pt>(this,&MpiPt2Pt::selfLinkHandler));
+        m_selfLink = configureSelfLink(tmp.str(), "1 ns", new Event::Handler<MpiPt2Pt>(this,&MpiPt2Pt::selfLinkHandler));
 
     	Params modParams;
 		m_misc = dynamic_cast< Hermes::Misc::Interface*>( loadAnonymousSubComponent<Hermes::Interface>( "aurora.misc", "", 0, ComponentInfo::SHARE_NONE, modParams ) );
@@ -134,7 +134,8 @@ class MpiPt2Pt : public Hermes::Mpi::Interface {
   protected:
 
 	uint64_t calcMemcpyLatency( size_t bytes ) {
-		m_dbg.debug(CALL_INFO,1,1,"memcpyLatency for %zu bytes is %" PRIu64 " ns.\n",bytes,  (uint64_t) bytes * m_memcpyLatency);
+		m_dbg.debug(CALL_INFO,1,1,"memcpyLatency for %zu bytes is %" PRIu64 " ns.\n",bytes,
+			(uint64_t)((double) bytes * m_memcpyLatency) );
 		return ((double)bytes * m_memcpyLatency);
 	}
 

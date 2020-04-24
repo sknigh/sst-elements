@@ -28,7 +28,7 @@ class HostLib : public Interface
 {
   public:
 
-	HostLib( Component* component, Params& params ) : Interface(component), m_nicCmd(NULL), m_state( Idle ) {
+	HostLib( ComponentId_t id, Params& params ) : Interface(id), m_nicCmd(NULL), m_state( Idle ) {
 
 		m_dbg.debug(CALL_INFO,1,2,"\n");
 
@@ -50,7 +50,8 @@ class HostLib : public Interface
 			m_returnLatency[i] = 0;
     	}
 
-    	m_selfLink = component->configureSelfLink("LibSelfLink", "1 ns", new Event::Handler<HostLib>(this,&HostLib::selfLinkHandler));	
+        m_selfLink = this->configureSelfLink("LibSelfLink", "1 ns", new Event::Handler<HostLib>(this,&HostLib::selfLinkHandler));
+		assert( m_selfLink );
 	}
 	~HostLib() {} 
 
