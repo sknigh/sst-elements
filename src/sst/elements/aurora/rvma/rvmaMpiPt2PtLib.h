@@ -31,13 +31,13 @@ namespace RVMA {
 class RvmaMpiPt2PtLib : public MpiPt2Pt
 {
   public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         RvmaMpiPt2PtLib,
         "aurora",
         "rvmaMpiPt2PtLib",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "",
-        ""
+        SST::Hermes::Mpi::Interface
     )
 
     SST_ELI_DOCUMENT_PARAMS(
@@ -45,7 +45,7 @@ class RvmaMpiPt2PtLib : public MpiPt2Pt
         {"verboseMask","Sets the debug mask",""},
     )
 
-	RvmaMpiPt2PtLib( Component*, Params& );
+	RvmaMpiPt2PtLib( ComponentId_t, Params& );
 	~RvmaMpiPt2PtLib() {} 
 
 	std::string getName()        { return "RvmaMpiPt2Pt"; }

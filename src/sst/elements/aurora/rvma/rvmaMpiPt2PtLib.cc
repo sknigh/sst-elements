@@ -23,7 +23,7 @@ using namespace Hermes;
 
 #define CALL_INFO_LAMBDA     __LINE__, __FILE__
 
-RvmaMpiPt2PtLib::RvmaMpiPt2PtLib( Component* owner, Params& params) : MpiPt2Pt(owner,params), m_longPutWinAddr(1) 
+RvmaMpiPt2PtLib::RvmaMpiPt2PtLib( ComponentId_t id, Params& params) : MpiPt2Pt(id,params), m_longPutWinAddr(1) 
 {
 	if ( params.find<bool>("print_all_params",false) ) {
 		printf("Aurora::RVMA::RvmaMpiPt2PtLib()\n");
