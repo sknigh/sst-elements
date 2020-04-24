@@ -23,9 +23,8 @@ using namespace Hermes;
 #define CALL_INFO_LAMBDA     __LINE__, __FILE__
 
 
-RdmaMpiPt2PtLib::RdmaMpiPt2PtLib( Component* owner, Params& params) : MpiPt2Pt(owner,params)
+RdmaMpiPt2PtLib::RdmaMpiPt2PtLib( ComponentId_t id, Params& params) : MpiPt2Pt(id,params)
 {
-
 	if ( params.find<bool>("print_all_params",false) ) {
 		printf("Aurora::RDMA::RdmaMpiPt2PtLib()\n");
 		params.print_all_params(std::cout);
