@@ -31,13 +31,13 @@ namespace RVMA {
 class RvmaLib : public HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp > 
 {
   public:
-    SST_ELI_REGISTER_SUBCOMPONENT(
+    SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
         RvmaLib,
         "aurora",
         "rvmaLib",
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "",
-        ""
+        SST::Hermes::Interface
     )
 
     SST_ELI_DOCUMENT_PARAMS(
@@ -45,7 +45,7 @@ class RvmaLib : public HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >
         {"verboseMask","Sets the debug mask",""},
     )
 
-	RvmaLib( Component*, Params& );
+	RvmaLib( ComponentId_t, Params& );
 	~RvmaLib() {} 
 
 	std::string getName()        { return "Rvma"; }

@@ -19,8 +19,8 @@
 
 using namespace SST::Aurora::RVMA;
 
-RvmaLib::RvmaLib( Component* owner, Params& params) :
-	HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >( owner, params )
+RvmaLib::RvmaLib( ComponentId_t id, Params& params) :
+	HostLib< Hermes::RVMA::Interface, NicCmd, RetvalResp >( id, params )
 {
 	dbg().debug(CALL_INFO,1,2,"\n");
 }
