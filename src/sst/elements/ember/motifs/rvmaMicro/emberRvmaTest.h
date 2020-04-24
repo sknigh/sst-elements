@@ -38,7 +38,6 @@ public:
 
     SST_ELI_DOCUMENT_PARAMS()
 
-	EmberRvmaTestGenerator(SST::Component* owner, Params& params) : EmberGenerator( owner, params,"") {}
 	EmberRvmaTestGenerator(SST::ComponentId_t id, Params& params) :
 		EmberGenerator( id, params, "RvmaTest" ), m_recvState(0), m_rvma(NULL), m_miscLib(NULL)
 	{ 
