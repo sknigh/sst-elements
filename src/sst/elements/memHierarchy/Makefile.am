@@ -115,6 +115,10 @@ libmemHierarchy_la_SOURCES = \
 	spmvCpu.cc \
 	gupsCpu.h \
 	gupsCpu.cc \
+	pcie_root.h \
+	pcie_root.cc \
+	pcie_link.h \
+	pcie_link.cc \
 	shmemNic.h \
 	shmemNic.cc \
 	shmemCmdQ.h \
