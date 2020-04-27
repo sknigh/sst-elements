@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -25,9 +25,6 @@ class MemoryBase : public SubComponent {
     typedef std::function<void()> Callback;
     typedef uint64_t MemAddr;
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    MemoryBase( Component* comp ) : SubComponent( comp ) {}
-#endif  // inserted by script
     MemoryBase( ComponentId_t id ) : SubComponent( id ) {}
     virtual ~MemoryBase() {}
     virtual void copy( Callback, MemAddr to, MemAddr from, size_t ) = 0;

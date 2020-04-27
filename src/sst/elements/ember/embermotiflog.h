@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -69,12 +69,18 @@ class EmberMotifLogRecord {
 
 class EmberMotifLog {
 	public:
-		EmberMotifLog(const std::string logPath, const uint32_t jobID);
+		EmberMotifLog(const std::string logPathPrefix, const uint32_t jobID);
 		~EmberMotifLog();
-		void logMotifStart(const std::string name, const int motifNum);
+		void logMotifStart(int motifNum);
+        void logMotifEnd(const std::string& name, const int motifNum);
+    void setRank(int r) { rank = r; }
 	protected:
 		EmberMotifLogRecord* logRecord;
-
+    private:
+        int jobID;
+        int rank;
+        std::string start_time;
+        int currentMotifNum;
 };
 
 }

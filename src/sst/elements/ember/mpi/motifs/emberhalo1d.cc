@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -19,17 +19,6 @@
 #include "emberhalo1d.h"
 
 using namespace SST::Ember;
-
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-EmberHalo1DGenerator::EmberHalo1DGenerator(SST::Component* owner, Params& params) :
-	EmberMessagePassingGenerator(owner, params, "Halo1D"),
-	m_loopIndex(0)
-{
-	iterations = (uint32_t) params.find("arg.iterations", 10);
-	nsCompute = (uint32_t) params.find("arg.computenano", 1000);
-	messageSize = (uint32_t) params.find("arg.messagesize", 128);
-}
-#endif  // inserted by script
 
 EmberHalo1DGenerator::EmberHalo1DGenerator(SST::ComponentId_t id, Params& params) :
 	EmberMessagePassingGenerator(id, params, "Halo1D"),

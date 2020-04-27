@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -55,9 +55,9 @@ namespace SST {
         class c_AddressHasher : public SubComponent {
 
         public:
-    
+
             SST_ELI_REGISTER_SUBCOMPONENT_API(SST::CramSim::c_AddressHasher, Output*, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned, unsigned)
-            
+
             SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
                 c_AddressHasher,
                 "CramSim",
@@ -79,9 +79,6 @@ namespace SST {
             )
 
             // Below is for calling in generic locations to obtain a pointer to the singleton instance
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-            c_AddressHasher(Component *comp, Params &params); // Temporary until subcomponent api transition is complete
-#endif  // inserted by script
             c_AddressHasher(ComponentId_t id, Params &params, Output* out, unsigned channels, unsigned ranks, unsigned bankGroups, unsigned banks, unsigned rows, unsigned cols, unsigned pChannels);
             void build(Params &params); // Temporary until subcomponent api transition is complete
 

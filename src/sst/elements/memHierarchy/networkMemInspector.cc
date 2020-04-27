@@ -1,9 +1,9 @@
 // -*- mode: c++ -*-
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -21,21 +21,11 @@
 
 namespace SST { namespace MemHierarchy {
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-networkMemInspector::networkMemInspector(Component *parent, Params &params)
-    : NetworkInspector(parent) {
-    // should fix to have this be a param
-    dbg.init("@R:netMemInspect::@p():@l " + getName() + ": ", 0, 0, 
-             Output::STDOUT);  
-
-}
-#endif  // inserted by script
-
 networkMemInspector::networkMemInspector(ComponentId_t id, Params &params, const std::string& sub_id)
     : NetworkInspector(id) {
     // should fix to have this be a param
-    dbg.init("@R:netMemInspect::@p():@l " + getName() + ": ", 0, 0, 
-             Output::STDOUT);  
+    dbg.init("@R:netMemInspect::@p():@l " + getName() + ": ", 0, 0,
+             Output::STDOUT);
 
     // Init the stats
     for (int i = 0; i < (int)Command::LAST_CMD; ++i) {

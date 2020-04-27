@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -51,12 +51,6 @@ class PageFaultHandler : public SubComponent {
             output = new SST::Output("PageFaultHandler[@f:@l:@p] ",
                 verbosity, 0, SST::Output::STDOUT);
         }
-#ifndef SST_ENABLE_PREVIEW_BUILD
-        PageFaultHandler(Component* comp, Params& params) : SubComponent(comp) {
-            output = new SST::Output("", 0, 0, SST::Output::STDOUT);
-            output->fatal(CALL_INFO, -1, "Error: PageFaultHandler subcomponents do not support loading using legacy load functions");
-        }
-#endif
         ~PageFaultHandler() {};
 
         /** Request to allocate a page */

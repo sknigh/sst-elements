@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -17,7 +17,6 @@
 #include <sst_config.h>
 
 #include "reorderLinkControl.h"
-#include "linkControl.h"
 
 #include <sst/core/simulation.h>
 
@@ -27,18 +26,6 @@ namespace SST {
 using namespace Interfaces;
 
 namespace Merlin {
-
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-ReorderLinkControl::ReorderLinkControl(Component* parent, Params &params) :
-    SimpleNetwork(parent),
-    receiveFunctor(NULL)
-{
-    std::string networkIF = params.find<std::string>("rlc:networkIF", "merlin.linkcontrol");
-DISABLE_WARN_DEPRECATED_DECLARATION
-    link_control = static_cast<SimpleNetwork*>(loadSubComponent(networkIF, params));
-REENABLE_WARNING
-}
-#endif  // inserted by script
 
 ReorderLinkControl::ReorderLinkControl(ComponentId_t cid, Params &params, int vns) :
     SimpleNetwork(cid),
@@ -51,7 +38,7 @@ ReorderLinkControl::ReorderLinkControl(ComponentId_t cid, Params &params, int vn
         // If the load was successful, we can return
         if ( link_control ) {
             this->vns = vns;
-    
+
             // Don't need output buffers, sends will go directly to
             // LinkControl.  Do need input buffers.
             input_buf = new request_queue_t[vns];
@@ -69,11 +56,11 @@ ReorderLinkControl::ReorderLinkControl(ComponentId_t cid, Params &params, int vn
         // send all params to child
         childParams = params;
     }
-    
+
     // If this was loaded as a user subcomponent, need to tell the
     // child what port to connect to
     if ( isUser() ) childParams.insert("port_name","rtr_port");
-    
+
     input_buf = new request_queue_t[vns];
 
     link_control =
@@ -91,19 +78,19 @@ ReorderLinkControl::initialize(const std::string& port_name, const UnitAlgebra& 
                                int vns, const UnitAlgebra& in_buf_size,
                                const UnitAlgebra& out_buf_size)
 {
-    if ( !wasLoadedWithLegacyAPI() ) {
-        merlin_abort.fatal(CALL_INFO_LONG,1,"reorderLinkControl::initializae() was called on instance that was loaded using new APIs.  This method can only be called when loaded with the legacy API.  Use wasLoadedWithLegacyAPI() to check load status.");
-        return false;
-    }
+    // if ( !wasLoadedWithLegacyAPI() ) {
+    //     merlin_abort.fatal(CALL_INFO_LONG,1,"reorderLinkControl::initializae() was called on instance that was loaded using new APIs.  This method can only be called when loaded with the legacy API.  Use wasLoadedWithLegacyAPI() to check load status.");
+    //     return false;
+    // }
     this->vns = vns;
-    
+
     // Don't need output buffers, sends will go directly to
     // LinkControl.  Do need input buffers.
     input_buf = new request_queue_t[vns];
 
-    // Initialize link_control
-    link_control->initialize(port_name, link_bw_in, vns, in_buf_size, out_buf_size);
-    
+    // // Initialize link_control
+    // link_control->initialize(port_name, link_bw_in, vns, in_buf_size, out_buf_size);
+
     return true;
 }
 #endif
@@ -144,7 +131,7 @@ void ReorderLinkControl::finish(void)
     // }
 
     // TODO: Need to delete reordered data as well
-    
+
     link_control->finish();
 }
 
@@ -156,9 +143,9 @@ bool ReorderLinkControl::send(SimpleNetwork::Request* req, int vn) {
     if ( !link_control->spaceToSend(vn, req->size_in_bits) ) return false;
     ReorderRequest* my_req = new ReorderRequest(req);
     delete req;
-    
+
     // Need to put in the sequence number
-    
+
     // See if we already have reorder_info for this dest
     if ( reorder_info.find(my_req->dest) == reorder_info.end() ) {
         ReorderInfo* info = new ReorderInfo();
@@ -249,7 +236,7 @@ bool ReorderLinkControl::handle_event(int vn) {
     ReorderRequest* my_req = static_cast<ReorderRequest*>(link_control->recv(vn));
 
     // std::cout << id << ": recieved packet with sequence number " << my_req->seq << std::endl;
-    
+
     if ( reorder_info.find(my_req->src) == reorder_info.end() ) {
         ReorderInfo* info = new ReorderInfo();
         reorder_info[my_req->src] = info;
@@ -281,7 +268,7 @@ bool ReorderLinkControl::handle_event(int vn) {
             //     if (!keep) receiveFunctor = NULL;
             // }
         }
-        
+
     }
     else {
         info->queue.push(my_req);

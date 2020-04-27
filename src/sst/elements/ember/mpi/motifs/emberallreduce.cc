@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -37,7 +37,7 @@ EmberAllreduceGenerator::EmberAllreduceGenerator(SST::ComponentId_t id,
 		m_op = op_create( test, 0 );
 	} else {
 		m_op = Hermes::MP::SUM;
-	}	
+	}
 }
 
 bool EmberAllreduceGenerator::generate( std::queue<EmberEvent*>& evQ) {
@@ -53,8 +53,8 @@ bool EmberAllreduceGenerator::generate( std::queue<EmberEvent*>& evQ) {
     }
     if ( 0 == m_loopIndex ) {
 		memSetBacked();
-		m_sendBuf = memAlloc(sizeofDataType(DOUBLE));
-		m_recvBuf = memAlloc(sizeofDataType(DOUBLE));
+		m_sendBuf = memAlloc(sizeofDataType(DOUBLE)*m_count);
+		m_recvBuf = memAlloc(sizeofDataType(DOUBLE)*m_count);
         enQ_getTime( evQ, &m_startTime );
     }
 

@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 #
-# Copyright 2009-2019 NTESS. Under the terms
+# Copyright 2009-2020 NTESS. Under the terms
 # of Contract DE-NA0003525 with NTESS, the U.S.
 # Government retains certain rights in this software.
 #
-# Copyright (c) 2009-2019, NTESS
+# Copyright (c) 2009-2020, NTESS
 # All rights reserved.
 #
 # Portions are copyright of other developers:
@@ -46,7 +46,7 @@ l1cache_params = {
 }
 
 bus_params = {
-    "bus_frequency" : memory_clock 
+    "bus_frequency" : memory_clock
 }
 
 l2cache_params = {
@@ -58,14 +58,14 @@ l2cache_params = {
     "associativity": 8,
     "cache_line_size": 64,
     "access_latency_cycles": 1,
-    "debug": "0" 
+    "debug": "0"
 }
 
 memory_params = {
     "coherence_protocol" : coherence_protocol,
     "backend.access_time" : "1ps",
     "rangeStart" : 0,
-    "backend.mem_size" : str( memory_capacity / (groups * memory_controllers_per_group)) + "MiB",
+    "backend.mem_size" : str( memory_capacity // (groups * memory_controllers_per_group)) + "MiB",
     "clock" : memory_clock,
 }
 

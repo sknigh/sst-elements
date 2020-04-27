@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -19,23 +19,6 @@
 
 using namespace SST::Prospero;
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-ProsperoBinaryTraceReader::ProsperoBinaryTraceReader( Component* owner, Params& params ) :
-	ProsperoTraceReader(owner, params) {
-
-	std::string traceFile = params.find<std::string>("file", "");
-	traceInput = fopen(traceFile.c_str(), "rb");
-
-	if(NULL == traceInput) {
-		fprintf(stderr, "Fatal: Error opening trace file: %s in binary reader.\n",
-			traceFile.c_str());
-		exit(-1);
-	}
-
-	recordLength = sizeof(uint64_t) + sizeof(char) + sizeof(uint64_t) + sizeof(uint32_t);
-	buffer = (char*) malloc(sizeof(char) * recordLength);
-}
-#endif  // inserted by script
 
 ProsperoBinaryTraceReader::ProsperoBinaryTraceReader( ComponentId_t id, Params& params, Output* out ) :
 	ProsperoTraceReader(id, params, out) {

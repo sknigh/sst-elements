@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -19,21 +19,6 @@
 
 using namespace SST::Prospero;
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-ProsperoTextTraceReader::ProsperoTextTraceReader( Component* owner, Params& params ) :
-	ProsperoTraceReader(owner, params) {
-
-	std::string traceFile = params.find<std::string>("file", "");
-	traceInput = fopen(traceFile.c_str(), "rt");
-
-	if(NULL == traceInput) {
-		fprintf(stderr, "Fatal: Unable to open file: %s in text reader.\n",
-			traceFile.c_str());
-		exit(-1);
-	}
-
-}
-#endif  // inserted by script
 
 ProsperoTextTraceReader::ProsperoTextTraceReader( ComponentId_t id, Params& params, Output* out ) :
 	ProsperoTraceReader(id, params, out) {

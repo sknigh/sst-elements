@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -108,9 +108,6 @@ class EmberShmemGenerator : public EmberGenerator {
 
 public:
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-	EmberShmemGenerator( Component* owner, Params& params, std::string name ="") : EmberGenerator(owner,params,name) {}
-#endif  // inserted by script
 	EmberShmemGenerator( ComponentId_t, Params& params, std::string name ="");
 	~EmberShmemGenerator() {}
     virtual void completed( const SST::Output*, uint64_t time ) {}

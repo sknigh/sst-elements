@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -65,9 +65,6 @@ namespace SST{
             SST_ELI_DOCUMENT_STATISTICS(
             )
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-            c_CmdScheduler(Component *comp, Params &x_params);
-#endif  // inserted by script
             c_CmdScheduler(ComponentId_t id, Params &x_params, Output* out, c_DeviceDriver*);
             void build(Params &x_params);
             ~c_CmdScheduler();

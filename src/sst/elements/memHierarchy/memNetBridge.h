@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -48,9 +48,6 @@ public:
             {"debug_level", "(int) Debugging level. Between 0 and 10", "0"} )
 
 /* Begin class definition */
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    MemNetBridge(SST::Component *comp, SST::Params &params);
-#endif  // inserted by script
     MemNetBridge(SST::ComponentId_t id, SST::Params &params, Merlin::Bridge*  bridge);
     ~MemNetBridge();
     void init(unsigned int);

@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -47,7 +47,7 @@ public:
     )
 
     SST_ELI_DOCUMENT_PARAMS(
-        { "module", "Sets the OS module", ""},
+        //{ "module", "Sets the OS module", ""},
         { "verbose", "Sets the output verbosity of the component", "0" },
         { "jobId", "Sets the job id", "-1"},
         { "netMapName", "used internally", "-1"},
@@ -71,7 +71,7 @@ public:
         { "spyplotmode", "Sets the spyplot generation mode, 0 = none, 1 = spy on sends", "0" },
 
         { "motifLog", "Sets a file path to a file where motif execution details are written, empty = no log", "" },
-
+/*
         { "Send_bin_width", "Bin width of the send time histogram", "5" },
         { "Compute_bin_width", "Bin width of the compute time histogram", "5" },
         { "Init_bin_width", "Bin width of the init time histogram", "5" },
@@ -102,6 +102,7 @@ public:
         { "noisegen", "Sets the noise generator for the system", "constant" },
         { "noisemean", "Sets the mean of a Gaussian noise generator", "1.0" },
         { "noisestddev", "Sets the standard deviation of a noise generator", "0.1" },
+*/
     )
 
     SST_ELI_DOCUMENT_PORTS(
@@ -119,13 +120,13 @@ public:
 	void init( unsigned int phase );
 
 	Output* getOutput() { return &output; }
-	Hermes::Interface* getAPI(std::string name) { 
+	Hermes::Interface* getAPI(std::string name) {
         if ( m_apiMap.find(name) == m_apiMap.end() ) {
             return NULL;
         }
-        return m_apiMap[name]->api; 
+        return m_apiMap[name]->api;
     }
-	Hermes::NodePerf* getNodePerf( ) { return m_nodePerf; } 
+	Hermes::NodePerf* getNodePerf( ) { return m_nodePerf; }
 	Thornhill::DetailedCompute* getDetailedCompute() {
 		return m_detailedCompute;
 	}
@@ -136,9 +137,9 @@ public:
 
     EmberLib* getLib( std::string name ) {
         if( m_apiMap.find( name ) == m_apiMap.end() ) {
-            output.fatal(CALL_INFO, -1, "Error: could not find %s\n",name.c_str() ); 
+            output.fatal(CALL_INFO, -1, "Error: could not find %s\n",name.c_str() );
         }
-        return m_apiMap[name]->lib; 
+        return m_apiMap[name]->lib;
     }
 
 private:
@@ -159,7 +160,7 @@ private:
     void completeCallback( EmberEvent* ev, int retval ) {
         completeFunctor(retval, ev);
     }
-    bool completeFunctor( int retval, EmberEvent* ev ); 
+    bool completeFunctor( int retval, EmberEvent* ev );
 
 	Hermes::OS*	m_os;
 
@@ -168,7 +169,7 @@ private:
         EmberLib*           lib;
     };
 
-    typedef std::map< std::string, ApiInfo* > ApiMap; 
+    typedef std::map< std::string, ApiInfo* > ApiMap;
 
     ApiMap createApiMap( Hermes::OS* os, SST::Component*, SST::Params );
     EmberGenerator* initMotif( SST::Params, const ApiMap&,

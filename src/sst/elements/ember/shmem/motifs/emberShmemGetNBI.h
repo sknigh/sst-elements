@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,12 +28,9 @@ template< class TYPE >
 class EmberShmemGetNBIGenerator : public EmberShmemGenerator {
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-	EmberShmemGetNBIGenerator(SST::Component* owner, Params& params) : EmberShmemGenerator(owner, params, "" ) {}
-#endif  // inserted by script
 	EmberShmemGetNBIGenerator(SST::ComponentId_t id, Params& params) :
 		EmberShmemGenerator(id, params, "ShmemGetNBI" ), m_phase(0)
-	{ 
+	{
         m_nelems = params.find<int>("arg.nelems", 1);
         m_i = m_count = params.find<int>("arg.count", 1);
         int status;
@@ -43,7 +40,7 @@ public:
 		free(tmp);
 	}
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
         bool ret = false;
         switch ( m_phase ) {
@@ -75,7 +72,7 @@ public:
 
             enQ_barrier_all( evQ );
             enQ_getTime( evQ, &m_startTime );
-	    	if ( m_my_pe == 0 ) { 
+	    	if ( m_my_pe == 0 ) {
 				++m_phase;
                 enQ_barrier_all( evQ );
 			}
@@ -98,7 +95,7 @@ public:
             if ( m_my_pe != 0 ) {
 				double time = m_stopTime-m_startTime;
 				size_t bytes = m_count * m_nelems * sizeof(TYPE);
-                printf("%d:%s: count=%d, %.3lf ns, %zu bytes, %.3lf GB/s \n",m_my_pe, getMotifName().c_str(), 
+                printf("%d:%s: count=%d, %.3lf ns, %zu bytes, %.3lf GB/s \n",m_my_pe, getMotifName().c_str(),
 						m_count,time/(double)m_count, bytes, (double) bytes/ time );
             }
         }
@@ -135,10 +132,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemGetNBIIntGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetNBIGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemGetNBIIntGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetNBIGenerator(id,  params) { }
 };
@@ -157,10 +150,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemGetNBILongGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetNBIGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemGetNBILongGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetNBIGenerator(id,  params) { }
 };
@@ -179,10 +168,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemGetNBIDoubleGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetNBIGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemGetNBIDoubleGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetNBIGenerator(id,  params) { }
 };
@@ -201,10 +186,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemGetNBIFloatGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemGetNBIGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemGetNBIFloatGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemGetNBIGenerator(id,  params) { }
 };

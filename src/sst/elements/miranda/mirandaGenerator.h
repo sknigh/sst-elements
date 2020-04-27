@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -35,7 +35,6 @@ typedef enum {
         OPCOUNT
 } ReqOperation;
 
-static std::atomic<uint64_t> nextGeneratorRequestID(0);
 
 class GeneratorRequest {
 public:
@@ -81,6 +80,8 @@ protected:
 	uint64_t reqID;
 	uint64_t issueTime;
 	std::vector<uint64_t> dependsOn;
+private:
+	static std::atomic<uint64_t> nextGeneratorRequestID;
 };
 
 template<typename QueueType>
@@ -220,9 +221,6 @@ class RequestGenerator : public SubComponent {
 public:
     SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Miranda::RequestGenerator)
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-	RequestGenerator( Component* owner, Params& params) : SubComponent(owner) {}
-#endif  // inserted by script
 	RequestGenerator( ComponentId_t id, Params& params) : SubComponent(id) {}
 	~RequestGenerator() {}
 	virtual void generate(MirandaRequestQueue<GeneratorRequest*>* q) { }

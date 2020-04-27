@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -38,29 +38,19 @@ namespace SimpleSubComponent {
   depending on the configuration.
 
   Configurations to be supported:
-  
+
  */
 
 
 class SubCompInterface : public SST::SubComponent
 {
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    SubCompInterface(Component *owningComponent) :
-        SubComponent(owningComponent)
-    { }
-#endif  // inserted by script
     SubCompInterface(ComponentId_t id) :
         SubComponent(id)
     { }
     SubCompInterface(ComponentId_t id, Params& params) :
         SubComponent(id)
     { }
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    SubCompInterface(Component* comp, Params& params) :
-        SubComponent(comp)
-    { }
-#endif  // inserted by script
     virtual ~SubCompInterface() {}
     virtual void clock(SST::Cycle_t) {}
 
@@ -84,7 +74,7 @@ public:
         "Default implementation of SubCompInterface",
         SST::SimpleSubComponent::SubCompInterface
     )
-    
+
 };
 
 /* Our trivial component */
@@ -144,7 +134,7 @@ public:
         SST::SimpleSubComponent::SubCompInterface
     )
 
-    
+
     SST_ELI_DOCUMENT_PARAMS(
         {"sendCount", "Number of Messages to Send", "10"},
         {"unnamed_subcomponent", "Unnamed SubComponent to load.  If empty, then a named subcomponent is loaded", ""},
@@ -158,20 +148,17 @@ public:
     SST_ELI_DOCUMENT_PORTS(
         {"slot_port%(num_subcomps)d", "Port(s) to send or receive on", { "simpleMessageGeneratorComponent.simpleMessage", "" } },
     )
-    
+
     SST_ELI_DOCUMENT_SUBCOMPONENT_SLOTS(
         {"mySubCompSlot", "Test slot", "SST::SimpleSubComponent::SubCompInterface" }
     )
 
-    
-private:    
+
+private:
     std::vector<SubCompInterface*> subComps;
-    
+
 public:
     // Legacy API
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    SubCompSlot(Component *owningComponent, Params &params);
-#endif  // inserted by script
     // New API
     SubCompSlot(ComponentId_t id, Params& params);
     // Direct load
@@ -212,21 +199,18 @@ public:
     SST_ELI_DOCUMENT_PORTS(
         {"sendPort", "Sending Port", { "simpleMessageGeneratorComponent.simpleMessage", "" } },
     )
-    
+
     // Optional since there is nothing to document
     SST_ELI_DOCUMENT_SUBCOMPONENT_SLOTS(
     )
 
-private:    
+private:
     Statistic<uint32_t> *nMsgSent;
     Statistic<uint32_t> *totalMsgSent;
     uint32_t nToSend;
     SST::Link *link;
 public:
     // Legacy API
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    SubCompSender(Component *owningComponent, Params &params);
-#endif  // inserted by script
     // New API
     SubCompSender(ComponentId_t id, Params &params);
     // Direct API
@@ -277,9 +261,6 @@ private:
     void handleEvent(SST::Event *ev);
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    SubCompReceiver(Component *owningComponent, Params &params);
-#endif  // inserted by script
     SubCompReceiver(ComponentId_t id, Params &params);
     SubCompReceiver(ComponentId_t id, std::string port) ;
     ~SubCompReceiver() {}

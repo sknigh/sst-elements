@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -40,12 +40,42 @@ char pymerlin[] = {
 #include "pymerlin.inc"
     0x00};
 
+char pymerlin_base[] = {
+#include "pymerlin-base.inc"
+    0x00};
+
+char pymerlin_endpoint[] = {
+#include "pymerlin-endpoint.inc"
+    0x00};
+
+char pymerlin_topo_dragonfly[] = {
+#include "topology/pymerlin-topo-dragonfly.inc"
+    0x00};
+
+char pymerlin_topo_hyperx[] = {
+#include "topology/pymerlin-topo-hyperx.inc"
+    0x00};
+
+char pymerlin_topo_fattree[] = {
+#include "topology/pymerlin-topo-fattree.inc"
+    0x00};
+
+char pymerlin_topo_mesh[] = {
+#include "topology/pymerlin-topo-mesh.inc"
+    0x00};
+
 class MerlinPyModule : public SSTElementPythonModule {
 public:
     MerlinPyModule(std::string library) :
         SSTElementPythonModule(library)
     {
-        createPrimaryModule(pymerlin,"pymerlin.py");
+        auto primary_module = createPrimaryModule(pymerlin,"pymerlin.py");
+        primary_module->addSubModule("base",pymerlin_base,"pymerlin-base.py");
+        primary_module->addSubModule("endpoint",pymerlin_endpoint,"pymerlin-endpoint.py");
+        primary_module->addSubModule("topology",pymerlin_topo_dragonfly,"topology/pymerlin-topo-dragonfly.py");
+        primary_module->addSubModule("topology",pymerlin_topo_hyperx,"topology/pymerlin-topo-hyperx.py");
+        primary_module->addSubModule("topology",pymerlin_topo_fattree,"topology/pymerlin-topo-fattree.py");
+        primary_module->addSubModule("topology",pymerlin_topo_mesh,"topology/pymerlin-topo-mesh.py");
     }
 
     SST_ELI_REGISTER_PYTHON_MODULE(

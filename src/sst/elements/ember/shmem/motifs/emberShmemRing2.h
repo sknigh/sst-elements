@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,17 +28,14 @@ template< class TYPE >
 class EmberShmemRing2Generator : public EmberShmemGenerator {
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-	EmberShmemRing2Generator(SST::Component* owner, Params& params) : EmberShmemGenerator(owner, params, "" ) {}
-#endif  // inserted by script
-	EmberShmemRing2Generator(SST::ComponentId_t id, Params& params) : 
-		EmberShmemGenerator(id, params, "ShmemRing2" ), m_phase(-2) 
-	{ 
+	EmberShmemRing2Generator(SST::ComponentId_t id, Params& params) :
+		EmberShmemGenerator(id, params, "ShmemRing2" ), m_phase(-2)
+	{
 		m_iterations = (uint32_t) params.find("arg.iterations", 1);
 		m_putv = params.find<bool>("arg.putv", true);
 	}
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
         if ( -2 == m_phase ) {
             enQ_init( evQ );
@@ -50,7 +47,7 @@ public:
             if ( 0 == m_my_pe ) {
                 printf("%d:%s: num_pes=%d \n",m_my_pe, getMotifName().c_str(), m_num_pes);
             }
-			
+
             m_src = m_dest.offset<TYPE>(1);
             m_dest.at<TYPE>(0) = 0;
             enQ_barrier_all( evQ );
@@ -85,9 +82,9 @@ public:
                 double totalTime = (double)(m_stopTime - m_startTime)/1000000000.0;
                 double latency = ((totalTime/m_iterations)/m_num_pes);
                 printf("%d:%s: message-size %d, iterations %d, total-time %.3lf us, time-per %.3lf us, %.3f GB/s\n",m_my_pe,
-                            getMotifName().c_str(), 
-							(int)sizeof(TYPE), 
-							m_iterations, 
+                            getMotifName().c_str(),
+							(int)sizeof(TYPE),
+							m_iterations,
 							totalTime * 1000000.0,
 							latency * 1000000.0,
                             (sizeof(TYPE) / latency )/1000000000.0);
@@ -99,7 +96,7 @@ public:
 		return m_phase == m_iterations + 1;
 	}
   private:
-	
+
     bool m_putv;
    	uint64_t m_startTime;
     uint64_t m_stopTime;
@@ -125,10 +122,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemRing2IntGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemRing2Generator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemRing2IntGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemRing2Generator(id,  params) { }
 };

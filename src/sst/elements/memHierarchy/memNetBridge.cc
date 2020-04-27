@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -23,17 +23,6 @@ using namespace SST::MemHierarchy;
 using SST::Merlin::Bridge;
 using SST::Interfaces::SimpleNetwork;
 
-
-
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-MemNetBridge::MemNetBridge(SST::Component *comp, SST::Params &params) :
-    Bridge::Translator(comp, params)
-{
-    int debugLevel = params.find<int>("debug_level", 0);
-    dbg.init("@t:Bridge::@p():@l " + getName() + ": ",
-            debugLevel, 0, (Output::output_location_t)params.find<int>("debug", 0));
-}
-#endif  // inserted by script
 
 MemNetBridge::MemNetBridge(SST::ComponentId_t id, SST::Params &params, Merlin::Bridge* bridge) :
     Bridge::Translator(id, params, bridge)

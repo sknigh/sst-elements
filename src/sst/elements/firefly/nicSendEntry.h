@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -29,15 +29,16 @@ class SendEntryBase {
 
     virtual int dst_vNic() = 0;
     virtual int dest() = 0;
+    virtual int vn() = 0;
     virtual void* hdr() = 0;
     virtual size_t hdrSize() = 0;
     virtual void copyOut( Output& dbg, int numBytes,
-            FireflyNetworkEvent& event, std::vector<MemOp>& vec ) = 0; 
+            FireflyNetworkEvent& event, std::vector<MemOp>& vec ) = 0;
     virtual bool shouldDelete() { return true; }
     bool isCtrl() { return m_isCtrl; }
     bool isAck() { return m_isAck; }
     int txDelay() { return m_txDelay; }
-    void setTxDelay(int delay) { m_txDelay = delay; } 
+    void setTxDelay(int delay) { m_txDelay = delay; }
     uint64_t m_start;
 
   protected:
@@ -70,12 +71,13 @@ class CmdSendEntry: public SendEntryBase, public EntryBase {
     std::vector<IoVec>& ioVec() { return m_cmd->iovec; }
     size_t totalBytes() { return m_hdr.len; }
     bool isDone()       { return EntryBase::isDone(); }
-    void copyOut( Output& dbg, int numBytes, 
+    void copyOut( Output& dbg, int numBytes,
                 FireflyNetworkEvent& event, std::vector<MemOp>& vec ) {
         EntryBase::copyOut(dbg,numBytes, event, vec );
     }
 
     MsgHdr::Op getOp()  { return MsgHdr::Msg; }
+    int vn()            { return m_cmd->vn; }
     int dst_vNic( )     { return m_cmd->dst_vNic; }
     int dest()          { return m_cmd->node; }
     void* hdr()         { return &m_hdr; }
@@ -108,8 +110,8 @@ class MsgSendEntry: public SendEntryBase {
 
 class GetOrgnEntry : public MsgSendEntry {
   public:
-    GetOrgnEntry( int local_vNic, int streamNum, int dst_node, int dst_vNic, int rgnNum, int respKey ) :
-            MsgSendEntry( local_vNic, streamNum, dst_node, dst_vNic )
+    GetOrgnEntry( int local_vNic, int streamNum, int dst_node, int dst_vNic, int rgnNum, int respKey, int vn ) :
+            MsgSendEntry( local_vNic, streamNum, dst_node, dst_vNic ), m_vn( vn )
     {
         m_hdr.respKey = respKey;
         m_hdr.rgnNum = rgnNum;
@@ -118,14 +120,15 @@ class GetOrgnEntry : public MsgSendEntry {
         m_isCtrl = true;
     }
 
+    int vn()               { return m_vn; }
     ~GetOrgnEntry() { }
 
     bool isDone()      { return true; }
     void copyOut( Output& dbg, int numBytes,
-                FireflyNetworkEvent& event, std::vector<MemOp>& vec ) 
+                FireflyNetworkEvent& event, std::vector<MemOp>& vec )
 	{
 		vec.push_back( MemOp( 0, numBytes, MemOp::Op::LocalLoad ) );
-	}; 
+	};
 
     size_t totalBytes(){ return sizeof( m_hdr ); }
     MsgHdr::Op getOp() { return MsgHdr::Rdma; }
@@ -135,19 +138,21 @@ class GetOrgnEntry : public MsgSendEntry {
   private:
     RdmaMsgHdr          m_hdr;
     std::vector<IoVec> m_ioVec;
+    int                m_vn;
 };
 
 class PutOrgnEntry : public MsgSendEntry, public EntryBase {
   public:
     PutOrgnEntry( int local_vNic, int streamNum, int dst_node,int dst_vNic,
-            int respKey, MemRgnEntry* memRgn ) :
+            int respKey, MemRgnEntry* memRgn, int vn ) :
         MsgSendEntry( local_vNic, streamNum, dst_node, dst_vNic ),
-        m_memRgn( memRgn )
+        m_memRgn( memRgn ), m_vn(vn)
     {
         m_totalBytes = EntryBase::totalBytes();
         m_hdr.respKey = respKey;
         m_hdr.op = RdmaMsgHdr::GetResp;
     }
+    int vn()               { return m_vn; }
 
     ~PutOrgnEntry()             { delete m_memRgn; }
 
@@ -168,4 +173,5 @@ class PutOrgnEntry : public MsgSendEntry, public EntryBase {
     size_t				m_totalBytes;
     MemRgnEntry*        m_memRgn;
     RdmaMsgHdr          m_hdr;
+    int                 m_vn;
 };

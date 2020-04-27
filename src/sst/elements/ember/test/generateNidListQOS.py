@@ -66,14 +66,14 @@ def _interval( args ):
     if len(args) >= 3:
         count = int(args[2])
     else:
-        count = sys.maxint
+        count = sys.maxsize
         
     # Start with a sorted nid space
     _nids.sort()
 
     nid_list = []
     index = start_index
-    for i in xrange(0,count):
+    for i in range(0,count):
         if ( index < len(_nids) ):
             nid_list.append( _nids.pop(index) )
             index = index + interval - 1 # -1 because we popped a value
@@ -99,7 +99,7 @@ def _finalize_qos_config(total_nodes) :
         if app.traffic_class > max:
             max = app.traffic_class
 
-    num_vns = 2 * (max + 1)
+    num_vns = max + 1
 
     # set up number of VNs.  Ember currently uses two VNs per class,
     # so we need to multiply by 2
@@ -111,9 +111,8 @@ def _finalize_qos_config(total_nodes) :
     # walk through apps array and set up the VN map
     for app in _apps:
         for nid in app.nids:
-            index = (nid * num_vns) + (app.traffic_class * 2)
+            index = (nid * num_vns) + app.traffic_class
             mylist[index] = 0
-            mylist[index+1] = 1
 
     sst.merlin._params["vn_remap_shm"] = "ember_vn_remap"
     sst.merlin._params["vn_remap"] = mylist
@@ -133,7 +132,7 @@ def generate( args ):
 
     global _nids
     if _nids is None:
-        _nids = range(total_nodes)
+        _nids = list(range(total_nodes))
 
     # allocation types and their args:
     # linear size

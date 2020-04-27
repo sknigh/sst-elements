@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,21 +28,18 @@ public:
 /* Element Library Info */
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(RequestReorderSimple, "memHierarchy", "reorderSimple", SST_ELI_ELEMENT_VERSION(1,0,0),
             "Simple request re-orderer, issues the first N requests that are accepted by the backend", SST::MemHierarchy::SimpleMemBackend)
-    
+
     SST_ELI_DOCUMENT_PARAMS( MEMBACKEND_ELI_PARAMS,
             /* Own parameters */
             {"verbose", "Sets the verbosity of the backend output", "0"},
             {"max_issue_per_cycle", "Maximum number of requests to issue per cycle. 0 or negative is unlimited.", "-1"},
             {"search_window_size",  "Maximum number of requests to search each cycle. 0 or negative is unlimited.", "-1"},
             {"backend",             "Backend memory system", "memHierarchy.simpleDRAM"} )
-            
+
     SST_ELI_DOCUMENT_SUBCOMPONENT_SLOTS({"backend", "Backend memory model", "SST::MemHierarchy::SimpleMemBackend"} )
 
 /* Begin class definition */
     RequestReorderSimple();
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    RequestReorderSimple(Component *comp, Params &params);
-#endif  // inserted by script
     RequestReorderSimple(ComponentId_t id, Params &params);
 	virtual bool issueRequest( ReqId, Addr, bool isWrite, unsigned numBytes );
     void setup();

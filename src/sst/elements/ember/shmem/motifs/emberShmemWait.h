@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,22 +28,19 @@ template <class TYPE>
 class EmberShmemWaitGenerator : public EmberShmemGenerator {
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-	EmberShmemWaitGenerator(SST::Component* owner, Params& params) : EmberShmemGenerator(owner, params, "" ) {}
-#endif  // inserted by script
 	EmberShmemWaitGenerator(SST::ComponentId_t id, Params& params) :
-		EmberShmemGenerator(id, params, "ShmemWait" ), m_phase(0) 
-	{ 
+		EmberShmemGenerator(id, params, "ShmemWait" ), m_phase(0)
+	{
         int status;
         std::string tname = typeid(TYPE).name();
 		char* tmp = abi::__cxa_demangle(tname.c_str(), NULL, NULL, &status);
         m_type_name = tmp;
-		free(tmp); 
+		free(tmp);
 
         assert( 4 == sizeof(TYPE) || 8 == sizeof(TYPE) );
 	}
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
         bool ret = false;
         switch ( m_phase ) {
@@ -66,7 +63,7 @@ public:
 
 			m_addr.at<TYPE>(0) = 0;
             enQ_barrier_all( evQ );
-            
+
             if ( m_my_pe == 0 ) {
                 enQ_wait( evQ, m_addr, (TYPE) 0 );
             } else {
@@ -109,10 +106,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemWaitIntGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemWaitGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemWaitIntGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemWaitGenerator(id,  params) { }
 };
@@ -131,10 +124,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemWaitLongGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemWaitGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemWaitLongGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemWaitGenerator(id,  params) { }
 };

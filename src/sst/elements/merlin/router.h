@@ -1,10 +1,10 @@
 // -*- mode: c++ -*-
 
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 // 
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 // 
 // Portions are copyright of other developers:
@@ -75,9 +75,6 @@ public:
     virtual int const* getOutputBufferCredits() = 0;
     virtual void sendTopologyEvent(int port, TopologyEvent* ev) = 0;
     virtual void recvTopologyEvent(int port, TopologyEvent* ev) = 0;
-
-    virtual void reportRequestedVNs(int port, int vns) = 0;
-    virtual void reportSetVNs(int port, int vns) = 0;
 };
 
 #define MERLIN_ENABLE_TRACE
@@ -111,24 +108,27 @@ private:
 
 class RtrEvent : public BaseRtrEvent {
 
+    friend class internal_router_event;
+
 public:
-    SST::Interfaces::SimpleNetwork::Request* request;
     
     RtrEvent() :
         BaseRtrEvent(BaseRtrEvent::PACKET),
         injectionTime(0)
     {}
 
-    RtrEvent(SST::Interfaces::SimpleNetwork::Request* req, SST::Interfaces::SimpleNetwork::nid_t trusted_src) :
+    RtrEvent(SST::Interfaces::SimpleNetwork::Request* req, SST::Interfaces::SimpleNetwork::nid_t trusted_src, int route_vn) :
         BaseRtrEvent(BaseRtrEvent::PACKET),
         request(req),
         trusted_src(trusted_src),
+        route_vn(route_vn),
         injectionTime(0)
     {}
 
+    
     ~RtrEvent()
     {
-        delete request;
+        if (request) delete request;
     }
     
     inline void setInjectionTime(SimTime_t time) {injectionTime = time;}
@@ -144,10 +144,20 @@ public:
     inline SST::Interfaces::SimpleNetwork::Request::TraceType getTraceType() const {return request->getTraceType();}
     inline int getTraceID() const {return request->getTraceID();}
     
-    inline void setSizeInFlits(int size ) {size_in_flits = size; }
+    inline void computeSizeInFlits(int flit_size ) {size_in_flits = (request->size_in_bits + flit_size - 1) / flit_size; }
     inline int getSizeInFlits() { return size_in_flits; }
+    inline int getSizeInBits() { return request->size_in_bits; }
 
+    inline SST::Interfaces::SimpleNetwork::nid_t getDest() const {return request->dest;}
+    
     inline SST::Interfaces::SimpleNetwork::nid_t getTrustedSrc() { return trusted_src; }
+    inline int getRouteVN() { return route_vn; }
+    inline int getLogicalVN() { return request->vn; }
+    SST::Interfaces::SimpleNetwork::Request* takeRequest() {
+        auto ret = request;
+        request = nullptr;
+        return ret;
+    }
     
     virtual void print(const std::string& header, Output &out) const  override {
         out.output("%s RtrEvent to be delivered at %" PRIu64 " with priority %d. src = %lld (logical: %lld), dest = %lld\n",
@@ -159,14 +169,16 @@ public:
         BaseRtrEvent::serialize_order(ser);
         ser & request;
         ser & trusted_src;
+        ser & route_vn;
         ser & size_in_flits;
         ser & injectionTime;
     }
     
 private:
-    // TraceType trace;
-    // int traceID;
+    SST::Interfaces::SimpleNetwork::Request* request;
+
     SST::Interfaces::SimpleNetwork::nid_t trusted_src;
+    int route_vn;
     SimTime_t injectionTime;
     int size_in_flits;
 
@@ -311,13 +323,15 @@ public:
     inline void setVC(int vc_in) {vc = vc_in; return;}
     inline int getVC() {return vc;}
 
-    inline void setVN(int vn) {encap_ev->request->vn = vn; return;}
-    inline int getVN() {return encap_ev->request->vn;}
+    // inline void setVN(int vn) {encap_ev->setVN(vn); return;}
+    inline int getVN() {return encap_ev->route_vn;}
 
     inline int getFlitCount() {return encap_ev->getSizeInFlits();}
 
     inline void setEncapsulatedEvent(RtrEvent* ev) {encap_ev = ev;}
     inline RtrEvent* getEncapsulatedEvent() {return encap_ev;}
+
+    inline SST::Interfaces::SimpleNetwork::Request* inspectRequest() { return encap_ev->request; }
 
     inline int getDest() const {return encap_ev->request->dest;}
     inline int getSrc() const {return encap_ev->getTrustedSrc();}
@@ -351,9 +365,6 @@ public:
     SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Merlin::Topology, int, int)
     
     enum PortState {R2R, R2N, UNCONNECTED};
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    Topology(Component* comp) : SubComponent(comp), output(Simulation::getSimulation()->getSimulationOutput()) {}
-#endif  // inserted by script
     Topology(ComponentId_t cid) : SubComponent(cid), output(Simulation::getSimulation()->getSimulationOutput()) {}
     virtual ~Topology() {}
 
@@ -422,11 +433,6 @@ public:
         SubComponent(cid)
         {}
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    PortInterface(Component* parent) :
-        SubComponent(parent)
-        {}
-#endif  // inserted by script
 
     virtual void initVCs(int vns, int* vcs_per_vn, internal_router_event** vc_heads, int* xbar_in_credits, int* output_queue_lengths) = 0;
 
@@ -456,11 +462,6 @@ public:
 
         SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Merlin::PortInterface::OutputArbitration)
     
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-        OutputArbitration(Component* parent) :
-            SubComponent(parent)
-        {}
-#endif  // inserted by script
         OutputArbitration(ComponentId_t cid) :
             SubComponent(cid)
         {}
@@ -481,11 +482,6 @@ public:
 
     SST_ELI_REGISTER_SUBCOMPONENT_API(SST::Merlin::XbarArbitration)
     
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    XbarArbitration(Component* parent) :
-        SubComponent(parent)
-    {}
-#endif  // inserted by script
     XbarArbitration(ComponentId_t cid) :
         SubComponent(cid)
     {}

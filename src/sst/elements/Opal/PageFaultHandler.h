@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -46,9 +46,6 @@ class PageFaultHandler : public SambaComponent::PageFaultHandler {
 
         /* MemoryManagerOpal */
         PageFaultHandler(ComponentId_t id, Params& params);
-#ifndef SST_ENABLE_PREVIEW_BUILD
-        PageFaultHandler(Component* comp, Params& params) : SambaComponent::PageFaultHandler(comp, params) { } // Legacy
-#endif
         ~PageFaultHandler();
 
         void handleEvent(SST::Event * event);

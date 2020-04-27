@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -28,12 +28,9 @@ template< class TYPE >
 class EmberShmemCswapGenerator : public EmberShmemGenerator {
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemCswapGenerator(SST::Component* owner, Params& params) : EmberShmemGenerator(owner, params, "" ) {}
-#endif  // inserted by script
     EmberShmemCswapGenerator(SST::ComponentId_t id, Params& params) :
-		EmberShmemGenerator(id, params, "ShmemCswap" ), m_phase(0) 
-	{ 
+		EmberShmemGenerator(id, params, "ShmemCswap" ), m_phase(0)
+	{
         int status;
         std::string tname = typeid(TYPE).name();
 		char* tmp = abi::__cxa_demangle(tname.c_str(), NULL, NULL, &status);
@@ -41,7 +38,7 @@ public:
 		free(tmp);
 	}
 
-    bool generate( std::queue<EmberEvent*>& evQ) 
+    bool generate( std::queue<EmberEvent*>& evQ)
 	{
         bool ret = false;
         switch ( m_phase ) {
@@ -62,7 +59,7 @@ public:
             break;
 
         case 2:
-            
+
             if ( m_my_pe == 0 ) {
                 m_addr.at<TYPE>(0) = 10;
             }
@@ -70,8 +67,8 @@ public:
             enQ_barrier_all( evQ );
 
             if ( m_my_pe == 1 ) {
-                m_value = 19; 
-				m_cond = 10; 
+                m_value = 19;
+				m_cond = 10;
 				enQ_cswap( evQ, &m_result, m_addr, &m_cond, &m_value, 0 );
             }
             enQ_barrier_all( evQ );
@@ -89,7 +86,7 @@ public:
                 tmp << " got="<< m_result << " want=" << 10;
                 printf("%d:%s: Fadd %s\n",m_my_pe, getMotifName().c_str(), tmp.str().c_str());
 
-                assert ( m_result == 10 ); 
+                assert ( m_result == 10 );
             }
 		    ret = true;
         }
@@ -121,10 +118,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemCswapIntGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemCswapGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemCswapIntGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemCswapGenerator(id,  params) { }
 };
@@ -141,13 +134,9 @@ public:
 
     )
 
-    SST_ELI_DOCUMENT_PARAMS() 
+    SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemCswapLongGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemCswapGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemCswapLongGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemCswapGenerator(id,  params) { }
 };
@@ -166,10 +155,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemCswapDoubleGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemCswapGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemCswapDoubleGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemCswapGenerator(id,  params) { }
 };
@@ -188,10 +173,6 @@ public:
     SST_ELI_DOCUMENT_PARAMS()
 
 public:
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    EmberShmemCswapFloatGenerator( SST::Component* owner, Params& params ) :
-        EmberShmemCswapGenerator(owner,  params) { }
-#endif  // inserted by script
     EmberShmemCswapFloatGenerator( SST::ComponentId_t id, Params& params ) :
         EmberShmemCswapGenerator(id,  params) { }
 };

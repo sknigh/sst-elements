@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -33,12 +33,12 @@ namespace CtrlMsg {
 typedef unsigned short key_t;
 
 struct MatchHdr {
-    uint32_t count; 
+    uint32_t count;
     uint32_t dtypeSize;
     MP::RankID rank;
     MP::Communicator group;
     uint64_t    tag;
-    key_t       key;      
+    key_t       key;
 };
 
 class _CommReq : public MP::MessageRequestBase {
@@ -46,9 +46,9 @@ class _CommReq : public MP::MessageRequestBase {
 
     enum Type { Recv, Send, Isend, Irecv };
 
-    _CommReq( Type type, std::vector<IoVec>& _ioVec, 
+    _CommReq( Type type, std::vector<IoVec>& _ioVec,
         unsigned int dtypeSize, MP::RankID rank, uint32_t tag,
-        MP::Communicator group ) : 
+        MP::Communicator group, int vn ) :
         m_type( type ),
         m_ioVec( _ioVec ),
         m_resp( NULL ),
@@ -56,10 +56,11 @@ class _CommReq : public MP::MessageRequestBase {
         m_destRank( MP::AnySrc ),
         m_ignore( 0 ),
         m_isMine( true ),
-        m_finiDelay_ns( 0 )
+        m_finiDelay_ns( 0 ),
+        m_vn(vn)
     {
         m_hdr.count = getLength() / dtypeSize;
-        m_hdr.dtypeSize = dtypeSize; 
+        m_hdr.dtypeSize = dtypeSize;
 
         if ( m_type == Recv || m_type == Irecv ) {
             m_hdr.rank = rank;
@@ -72,18 +73,19 @@ class _CommReq : public MP::MessageRequestBase {
     }
 
     _CommReq( Type type, const Hermes::MemAddr& buf, uint32_t count,
-        unsigned int dtypeSize, MP::RankID rank, uint32_t tag, 
-        MP::Communicator group, MP::MessageResponse* resp = NULL ) :
+        unsigned int dtypeSize, MP::RankID rank, uint32_t tag,
+        MP::Communicator group, int vn, MP::MessageResponse* resp = NULL ) :
         m_type( type ),
         m_resp( resp ),
         m_done( false ),
         m_destRank( MP::AnySrc ),
         m_ignore( 0 ),
         m_isMine( true ),
-        m_finiDelay_ns( 0 )
-    { 
+        m_finiDelay_ns( 0 ),
+        m_vn(vn)
+    {
         m_hdr.count = count;
-        m_hdr.dtypeSize = dtypeSize; 
+        m_hdr.dtypeSize = dtypeSize;
 
         if ( m_type == Recv || m_type == Irecv ) {
             m_hdr.rank = rank;
@@ -113,16 +115,16 @@ class _CommReq : public MP::MessageRequestBase {
     }
 
     MatchHdr& hdr() { return m_hdr; }
-    
-    std::vector<IoVec>& ioVec() { 
+
+    std::vector<IoVec>& ioVec() {
         assert( ! m_ioVec.empty() );
-        return m_ioVec; 
+        return m_ioVec;
     }
 
     bool isDone() { return m_done; }
-    void setDone(int delay = 0 ) { 
+    void setDone(int delay = 0 ) {
         m_finiDelay_ns = delay;
-        m_done = true; 
+        m_done = true;
     }
 
     MP::MessageResponse* getResp(  ) {
@@ -143,7 +145,7 @@ class _CommReq : public MP::MessageRequestBase {
 
     MP::RankID getDestRank() { return m_destRank; }
     MP::Communicator getGroup() { return m_hdr.group; }
-    
+
     size_t getLength( ) {
         size_t length = 0;
         for ( size_t i = 0; i < m_ioVec.size(); i++ ) {
@@ -168,10 +170,11 @@ class _CommReq : public MP::MessageRequestBase {
     // need to save info for the long protocol ack
     int m_ackKey;
     int m_ackNid;
+    int m_vn;
 
   private:
 
-    MatchHdr            m_hdr; 
+    MatchHdr            m_hdr;
     Type                m_type;
     std::vector<IoVec>  m_ioVec;
     MP::MessageResponse* m_resp;
@@ -179,7 +182,7 @@ class _CommReq : public MP::MessageRequestBase {
     MP::RankID      m_destRank;
     MP::MessageResponse  m_matchInfo;
     uint64_t            m_ignore;
-    bool                m_isMine; 
+    bool                m_isMine;
     int                 m_finiDelay_ns;
 };
 

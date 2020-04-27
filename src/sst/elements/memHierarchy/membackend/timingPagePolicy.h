@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // This file is part of the SST software package. For license
@@ -23,9 +23,6 @@ class PagePolicy : public SST::SubComponent {
   public:
     SST_ELI_REGISTER_SUBCOMPONENT_API(SST::MemHierarchy::TimingDRAM_NS::PagePolicy)
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    PagePolicy( Component* owner, Params& params ) : SubComponent( owner )  { }
-#endif  // inserted by script
     PagePolicy( ComponentId_t id, Params& params ) : SubComponent( id )  { }
     virtual bool shouldClose( SimTime_t current ) = 0;
     virtual bool canClose() = 0 ;
@@ -36,15 +33,10 @@ class SimplePagePolicy : public PagePolicy {
 /* Element Library Info */
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(SimplePagePolicy, "memHierarchy", "simplePagePolicy", SST_ELI_ELEMENT_VERSION(1,0,0),
             "static page open or close policy", SST::MemHierarchy::TimingDRAM_NS::PagePolicy)
-    
+
     SST_ELI_DOCUMENT_PARAMS( {"close", "Whether to use a closed (true) or open (false) page policy", "true"} )
 
 /* Begin class definition */
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    SimplePagePolicy( Component* owner, Params& params ) : PagePolicy( owner, params )  {
-        m_close = params.find<bool>("close", true);
-    }
-#endif  // inserted by script
     SimplePagePolicy( ComponentId_t id, Params& params ) : PagePolicy( id, params )  {
         m_close = params.find<bool>("close", true);
     }
@@ -54,7 +46,7 @@ class SimplePagePolicy : public PagePolicy {
     }
 
     bool canClose() {
-        return m_close; 
+        return m_close;
     }
 
   protected:
@@ -66,21 +58,15 @@ class TimeoutPagePolicy : public PagePolicy {
 /* Element Library Info */
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(TimeoutPagePolicy, "memHierarchy", "timeoutPagePolicy", SST_ELI_ELEMENT_VERSION(1,0,0),
             "timeout based page open or close policy", SST::MemHierarchy::TimingDRAM_NS::PagePolicy)
-    
+
     SST_ELI_DOCUMENT_PARAMS( {"timeoutCycles", "Timeout (close page) after this many cycles", "5"} )
 
 /* Begin class definition */
     TimeoutPagePolicy( ComponentId_t id, Params& params ) : PagePolicy( id, params ),
-        m_numCyclesLeft(0), m_lastCycle(-2) { 
+        m_numCyclesLeft(0), m_lastCycle(-2) {
         m_cycles = params.find<SimTime_t>("timeoutCycles", 5);
     }
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    TimeoutPagePolicy( Component* owner, Params& params ) : PagePolicy( owner, params ),
-        m_numCyclesLeft(0), m_lastCycle(-2) { 
-        m_cycles = params.find<SimTime_t>("timeoutCycles", 5);
-    }
-#endif  // inserted by script
 
     bool shouldClose( SimTime_t current ) {
 

@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -49,7 +49,7 @@ namespace SST {
         public:
 
             SST_ELI_REGISTER_SUBCOMPONENT_API(SST::CramSim::c_TxnScheduler, Output*, unsigned, c_TxnConverter*, c_CmdScheduler*)
-            
+
             SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(
                 c_TxnScheduler,
                 "CramSim",
@@ -73,9 +73,6 @@ namespace SST {
             SST_ELI_DOCUMENT_STATISTICS(
             )
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-            c_TxnScheduler(SST::Component *comp, SST::Params &x_params); // Temporary
-#endif  // inserted by script
             c_TxnScheduler(SST::ComponentId_t id, SST::Params &x_params, Output* out, unsigned channels, c_TxnConverter* converter, c_CmdScheduler* scheduler);
             void build(Params &x_params); // Temporary
             ~c_TxnScheduler();

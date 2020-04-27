@@ -1,10 +1,10 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -27,21 +27,14 @@
 #include <stdint.h>
 #include <sst/core/subcomponent.h>
 
-namespace SST { 
+namespace SST {
 namespace MemHierarchy {
 
 class HashFunction : public SubComponent {
 public:
     SST_ELI_REGISTER_SUBCOMPONENT_API(SST::MemHierarchy::HashFunction)
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    HashFunction(Component* comp, Params& params) : SubComponent(comp) {
-        Output out("", 1, 0, Output::STDOUT);
-        out.fatal(CALL_INFO, -1, "%s, Error: HashFunctions do not support loading as legacy subcomponents\n",
-                getName().c_str());
-    }
-#endif  // inserted by script
-    
+
     HashFunction(ComponentId_t id, Params& params) : SubComponent(id) {}
     virtual ~HashFunction() {}
 
@@ -54,9 +47,6 @@ public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(NoHashFunction, "memHierarchy", "hash.none", SST_ELI_ELEMENT_VERSION(1,0,0),
             "Default hash function - none, returns unmodified value", SST::MemHierarchy::HashFunction)
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    NoHashFunction(Component* comp, Params& params) : HashFunction(comp, params) {}
-#endif  // inserted by script
     NoHashFunction(ComponentId_t id, Params& params) : HashFunction(id, params) {}
 
     inline uint64_t hash(uint32_t ID, uint64_t value) {
@@ -71,9 +61,6 @@ public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(LinearHashFunction, "memHierarchy", "hash.linear", SST_ELI_ELEMENT_VERSION(1,0,0),
             "Linear hash from C99 standard's RNG function", SST::MemHierarchy::HashFunction)
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    LinearHashFunction(Component* comp, Params& params) : HashFunction(comp, params) {}
-#endif  // inserted by script
     LinearHashFunction(ComponentId_t id, Params& params) : HashFunction(id, params) {}
 
     uint64_t hash(uint32_t ID, uint64_t x) {
@@ -87,11 +74,8 @@ public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(XorHashFunction, "memHierarchy", "hash.xor", SST_ELI_ELEMENT_VERSION(1,0,0),
             "Simple XOR hash", SST::MemHierarchy::HashFunction)
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    XorHashFunction(Component* comp, Params& params) : HashFunction(comp, params) {}
-#endif  // inserted by script
     XorHashFunction(ComponentId_t id, Params& params) : HashFunction(id, params) {}
-    
+
     uint64_t hash(uint32_t ID, uint64_t x) {
         unsigned char b[8];
         for (unsigned i = 0; i < 8; ++i)
@@ -103,11 +87,11 @@ public:
         uint64_t result = 0;
         for (unsigned i = 0; i < 8; ++i)
             result |= (b[i]<<(i*8));
-    
+
         return result;
     }
 };
 
 }}
-#endif	
+#endif
 /* HASH_H */

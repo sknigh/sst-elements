@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -30,7 +30,7 @@ using namespace SST::Cassini;
 void PalaPrefetcher::notifyAccess(const CacheListenerNotification& notify)
 {
     const NotifyAccessType notifyType = notify.getAccessType();
-    
+
     if (notifyType != READ && notifyType != WRITE)
         return;
 
@@ -230,13 +230,6 @@ void PalaPrefetcher::DispatchRequest(Addr targetAddress)
     }
 }
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-PalaPrefetcher::PalaPrefetcher(Component* owner, Params& params) : CacheListener(owner, params)
-{
-    Output out("", 1, 0, Output::STDOUT);
-    out.fatal(CALL_INFO, -1, "%s, Error: SubComponent does not support legacy loadSubComponent call; use new calls (loadUserSubComponent or loadAnonymousSubComponent)\n", getName().c_str());
-}
-#endif  // inserted by script
 
 PalaPrefetcher::PalaPrefetcher(ComponentId_t id, Params& params) : CacheListener(id, params)
 {

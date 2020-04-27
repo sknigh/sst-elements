@@ -1,3 +1,17 @@
+// Copyright 2009-2020 NTESS. Under the terms
+// of Contract DE-NA0003525 with NTESS, the U.S.
+// Government retains certain rights in this software.
+//
+// Copyright (c) 2009-2020, NTESS
+// All rights reserved.
+//
+// Portions are copyright of other developers:
+// See the file CONTRIBUTORS.TXT in the top level directory
+// the distribution for more information.
+//
+// This file is part of the SST software package. For license
+// information, see the LICENSE file in the top level directory of the
+// distribution.
 
 #include <sst_config.h>
 #include <sst/core/output.h>
@@ -10,24 +24,6 @@
 #include "shogun_nic.h"
 
 using namespace SST::Shogun;
-
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-ShogunNIC::ShogunNIC(SST::Component* component, Params& params)
-    : SimpleNetwork(component)
-    , netID(-1), bw(UnitAlgebra("1GB/s"))
-{
-
-    const int verbosity = params.find<uint32_t>("verbose", 0);
-
-    //TODO: output = new ...
-    output = new SST::Output("ShogunNIC-Startup ", verbosity, 0, Output::STDOUT);
-    reqQ = nullptr;
-    remote_input_slots = -1;
-
-    onSendFunctor = nullptr;
-    onRecvFunctor = nullptr;
-}
-#endif  // inserted by script
 
 ShogunNIC::ShogunNIC(SST::ComponentId_t id, Params& params, int vns = 1)
     : SimpleNetwork(id)
@@ -42,13 +38,13 @@ ShogunNIC::ShogunNIC(SST::ComponentId_t id, Params& params, int vns = 1)
 
     onSendFunctor = nullptr;
     onRecvFunctor = nullptr;
-    
+
     std::string portName = params.find<std::string>("port_name", "port");
-    
+
     output->verbose(CALL_INFO, 4, 0, "Configuring port %s...\n", portName.c_str());
 
     link = configureLink(portName, "1ps", new Event::Handler<ShogunNIC>(this, &ShogunNIC::recvLinkEvent));
-    
+
     if (!link)
         output->fatal(CALL_INFO, -1, "%s, Error: attempt to configure link on port '%s' was unsuccessful.\n", getName().c_str(), portName.c_str());
 }

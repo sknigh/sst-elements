@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -136,15 +136,6 @@ PortControl::recv(int vc)
 #endif
     return event;
 }
-
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-PortControl::PortControl(Component* parent, Params& params) :
-    PortInterface(parent),
-    output(Simulation::getSimulation()->getSimulationOutput())
-{
-    merlin_abort.fatal(CALL_INFO_LONG,1,"Old style subcomponent loading not supported for PortControl.");
-}
-#endif  // inserted by script
 
 
 PortControl::PortControl(ComponentId_t cid, Params& params,  Router* rif, int rtr_id, int port_number, Topology *topo) :
@@ -318,9 +309,6 @@ PortControl::PortControl(ComponentId_t cid, Params& params,  Router* rif, int rt
         if ( ni == NULL ) {
             merlin_abort.fatal(CALL_INFO,1,"NetworkInspector: %s, not found.\n",inspector_names[i].c_str());
         }
-#ifndef SST_ENABLE_PREVIEW_BUILD
-        if ( ni->wasLoadedWithLegacyAPI() ) ni->initialize(port_name);
-#endif
         network_inspectors.push_back(ni);
     }
 
@@ -428,15 +416,6 @@ PortControl::initVCs(int vns, int* vcs_per_vn, internal_router_event** vc_heads_
     // for ( int i = 0; i < vcs; i++ ) port_out_credits[i] = 0;
 
 
-    // If I'm not a host port, I'm going to send out the VC count to
-    // my neighbors in case they don't have any host ports to get the
-    // request from.
-    if ( !host_port && port_link ) {
-        RtrInitEvent* init_ev = new RtrInitEvent();
-        init_ev->command = RtrInitEvent::SET_VNS;
-        init_ev->int_value = num_vns;
-        port_link->sendInitData(init_ev);
-    }
     // Need to start the timer for links that never send data
     idle_start = Simulation::getSimulation()->getCurrentSimCycle();
     is_idle = true;
@@ -511,6 +490,7 @@ PortControl::init(unsigned int phase) {
         init_ev = new RtrInitEvent();
         init_ev->command = RtrInitEvent::REPORT_BW;
         init_ev->ua_value = link_bw;
+        
         port_link->sendInitData(init_ev);
         
         // If this is a host port, send the endpoint ID to the LinkControl
@@ -556,16 +536,12 @@ PortControl::init(unsigned int phase) {
         
         // Get initialization event from endpoint, but only if I am a host port
         if ( topo->isHostPort(port_number) ) {
+            // Number of VNs used by the endpoint
             ev = port_link->recvInitData();
             init_ev = dynamic_cast<RtrInitEvent*>(ev);
             int req_vns = init_ev->int_value;
             if ( num_vns == -1 ) num_vns = req_vns;
-            // Need to notify the router about the number of VNs requested
-            parent->reportRequestedVNs(port_number,init_ev->int_value);
-            // if ( num_vns == -1 ) {
-            //     // Need to notify the router about the number of VNs requested
-            //     parent->reportRequestedVNs(port_number,init_ev->int_value);
-            // }
+
             remote_rdy_for_credits = true;
             delete ev;
 
@@ -612,6 +588,9 @@ PortControl::init(unsigned int phase) {
             init_ev = dynamic_cast<RtrInitEvent*>(ev);
             remote_port_number = init_ev->int_value;
             delete init_ev;
+
+            remote_rdy_for_credits = true;
+
         }
         }
         break;
@@ -636,11 +615,12 @@ PortControl::init(unsigned int phase) {
         else {
             // If my VCs have been initialized and the remote side is
             // ready to receive credits, send the credit events.
-            if ( num_vcs != -1 && remote_rdy_for_credits ) {
+            if ( remote_rdy_for_credits ) {
                 for ( int i = 0; i < num_vcs; i++ ) {
                     port_link->sendInitData(new credit_event(i,port_ret_credits[i]));
                     port_ret_credits[i] = 0;
                 }
+                // Make sure we only send the credits once
                 remote_rdy_for_credits = false;
             }
         }
@@ -660,10 +640,6 @@ PortControl::init(unsigned int phase) {
                 if ( init_ev != NULL ) {
                     // std::cout << "Received RtrInitEvent (port = " << port_number << ")" << std::endl;
                     remote_rdy_for_credits = true;
-                    if ( num_vns == -1 ) {
-                        // I have not yet been intiialized, so report VCs to router
-                        parent->reportSetVNs(port_number,init_ev->int_value);
-                    }
                     delete init_ev;
                 }
                 else {
@@ -798,7 +774,6 @@ PortControl::dumpQueueState(port_queue_t& q, Output& out) {
 void
 PortControl::handle_input_n2r(Event* ev)
 {
-    
 	// Check to see if this is a credit or data packet
 	// credit_event* ce = dynamic_cast<credit_event*>(ev);
 	// if ( ce != NULL ) {
@@ -843,21 +818,21 @@ PortControl::handle_input_n2r(Event* ev)
 	    // Simply put the event into the right virtual network queue
         
 	    // Need to process input and do the routing
-        int vn = event->request->vn;
+        int vn = event->getRouteVN();
         internal_router_event* rtr_event = topo->process_input(event);
         rtr_event->setCreditReturnVC(vn);
         int curr_vc = rtr_event->getVC();
 	    topo->route(port_number, rtr_event->getVC(), rtr_event);
 	    input_buf[curr_vc].push(rtr_event);
 	    input_buf_count[curr_vc]++;
-        
+
 	    // If this becomes vc_head we need to put it into the vc_heads array
 	    if ( vc_heads[curr_vc] == NULL ) {
             vc_heads[curr_vc] = rtr_event;
             parent->inc_vcs_with_data();
 	    }
 	    
-	    if ( event->request->getTraceType() != SST::Interfaces::SimpleNetwork::Request::NONE ) {
+	    if ( event->getTraceType() != SST::Interfaces::SimpleNetwork::Request::NONE ) {
             output.output("TRACE(%d): %" PRIu64 " ns: Received an event on port %d in router %d"
                           " (%s) on VC %d from src %" PRIu64 " to dest %" PRIu64 ".\n",
                           event->getTraceID(),
@@ -866,8 +841,8 @@ PortControl::handle_input_n2r(Event* ev)
                           rtr_id,
                           getName().c_str(),
                           curr_vc,
-                          event->request->src,
-                          event->request->dest);
+                          event->getTrustedSrc(),
+                          event->getDest());
                           
             // std::cout << "TRACE(" << event->getTraceID() << "): " << parent->getCurrentSimTimeNano()
             //           << " ns: Received an event on port " << port_number
@@ -1055,12 +1030,12 @@ PortControl::handle_output(Event* ev) {
                           send_event->getSrc(),
                           send_event->getDest());
 	    }
-        send_bit_count->addData(send_event->getEncapsulatedEvent()->request->size_in_bits);
+        send_bit_count->addData(send_event->getEncapsulatedEvent()->getSizeInBits());
         send_packet_count->addData(1);
 
         // Send the request to all the registered NetworkInspectors
         for ( unsigned int i = 0; i < network_inspectors.size(); i++ ) {
-            network_inspectors[i]->inspectNetworkData(send_event->getEncapsulatedEvent()->request);
+            network_inspectors[i]->inspectNetworkData(send_event->inspectRequest());
         }
 
 	    if ( host_port ) {

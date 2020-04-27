@@ -1,8 +1,8 @@
-// Copyright 2009-2018 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2018, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -18,12 +18,12 @@
  */
 
 #include <sst_config.h>
-#include <stdio.h>
-
-#include <sst/core/link.h>
 
 #include "PageFaultHandler.h"
 #include "Opal_Event.h"
+
+#include <sst/core/link.h>
+
 
 using namespace SST::OpalComponent;
 

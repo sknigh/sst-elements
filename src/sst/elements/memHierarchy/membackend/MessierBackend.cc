@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -29,9 +29,6 @@ using namespace SST::MemHierarchy;
 //using namespace SST::MessierComponent;
 
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-Messier::Messier(Component *comp, Params &params) : SimpleMemBackend(comp,params){ build(params); }
-#endif  // inserted by script
 Messier::Messier(ComponentId_t id, Params &params) : SimpleMemBackend(id,params){ build(params); }
 
 void Messier::build(Params& params) {
@@ -58,7 +55,7 @@ bool Messier::issueRequest(ReqId reqId, Addr addr, bool isWrite, unsigned numByt
 	//      output->fatal(CALL_INFO, -1, "Assertion failed");
 
 	outToNVM.insert( reqId );
-	nvm_link->send( new SST::MessierComponent::MemReqEvent(reqId,addr,isWrite,numBytes, 0) ); 
+	nvm_link->send( new SST::MessierComponent::MemReqEvent(reqId,addr,isWrite,numBytes, 0) );
 	return true;
 }
 
@@ -73,7 +70,7 @@ void Messier::handleMessierResp(SST::Event *event){
 			outToNVM.erase( ev->getReqId() );
 			handleMemResponse( ev->getReqId() );
 			delete event;
-		} else {  
+		} else {
 			;// output->fatal(CALL_INFO, -1, "Could not match incoming request from cubes\n");
 		}
 	} else {

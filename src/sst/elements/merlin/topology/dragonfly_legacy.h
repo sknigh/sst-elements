@@ -1,12 +1,12 @@
 // -*- mode: c++ -*-
 
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
-// 
-// Copyright (c) 2009-2019, NTESS
+//
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
-// 
+//
 // Portions are copyright of other developers:
 // See the file CONTRIBUTORS.TXT in the top level directory
 // the distribution for more information.
@@ -41,7 +41,7 @@ public:
         SST_ELI_ELEMENT_VERSION(1,0,0),
         "Legacy dragonfly topology object.  No longer supported.",
         SST::Merlin::Topology)
-    
+
     SST_ELI_DOCUMENT_PARAMS(
         {"dragonfly:hosts_per_router",      "Number of hosts connected to each router."},
         {"dragonfly:routers_per_group",     "Number of links used to connect to routers in same group."},
@@ -50,7 +50,7 @@ public:
         {"dragonfly:algorithm",             "Routing algorithm to use [minmal (default) | valiant].", "minimal"}
     )
 
-    
+
     /* Assumed connectivity of each router:
      * ports [0, p-1]:      Hosts
      * ports [p, p+a-2]:    Intra-group
@@ -84,9 +84,6 @@ public:
         uint32_t host;
     };
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    topo_dragonfly_legacy(Component* comp, Params& p);
-#endif  // inserted by script
     topo_dragonfly_legacy(ComponentId_t cid, Params& p, int num_ports, int rtr_id);
     ~topo_dragonfly_legacy();
 
@@ -136,7 +133,7 @@ public:
         ser & dest.router;
         ser & dest.host;
     }
-    
+
 private:
     ImplementSerializable(SST::Merlin::topo_dragonfly_legacy_event)
 };

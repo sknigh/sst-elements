@@ -1,8 +1,8 @@
-// Copyright 2013-2018 NTESS. Under the terms
+// Copyright 2013-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2013-2018, NTESS
+// Copyright (c) 2013-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -27,9 +27,6 @@ namespace Misc {
 class Interface : public Hermes::Interface {
     public:
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-    Interface( Component* parent ) : Hermes::Interface(parent) {}
-#endif  // inserted by script
     Interface( ComponentId_t id ) : Hermes::Interface(id) {}
 
     virtual void getNodeNum( int*, Callback*) { assert(0); }

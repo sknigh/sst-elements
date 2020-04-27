@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -25,12 +25,6 @@ using namespace SST;
 using namespace SST::MemHierarchy;
 using namespace SST::Cassini;
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-NextBlockPrefetcher::NextBlockPrefetcher(Component* comp, Params& params) : CacheListener(comp, params) {
-    Output out("", 1, 0, Output::STDOUT);
-    out.fatal(CALL_INFO, -1, "%s, Error: SubComponent does not support legacy loadSubComponent call; use new calls (loadUserSubComponent or loadAnonymousSubComponent)\n", getName().c_str());
-}
-#endif  // inserted by script
 
 NextBlockPrefetcher::NextBlockPrefetcher(ComponentId_t id, Params& params) : CacheListener(id, params) {
     Simulation::getSimulation()->requireEvent("memHierarchy.MemEvent");
@@ -52,11 +46,11 @@ void NextBlockPrefetcher::notifyAccess(const CacheListenerNotification& notify) 
     if (notifyType == READ || notifyType == WRITE) { // ignore evicts
         if(notifyResType == MISS) {
             statMissEventsProcessed->addData(1);
-            
+
             Addr nextBlockAddr = (addr - (addr % blockSize)) + blockSize;
             std::vector<Event::HandlerBase*>::iterator callbackItr;
             statPrefetchEventsIssued->addData(1);
-            
+
             // Cycle over each registered call back and notify them that we want to issue a prefetch request
             for(callbackItr = registeredCallbacks.begin(); callbackItr != registeredCallbacks.end(); callbackItr++) {
                 // Create a new read request, we cannot issue a write because the data will get

@@ -1,8 +1,8 @@
-// Copyright 2009-2019 NTESS. Under the terms
+// Copyright 2009-2020 NTESS. Under the terms
 // of Contract DE-NA0003525 with NTESS, the U.S.
 // Government retains certain rights in this software.
 //
-// Copyright (c) 2009-2019, NTESS
+// Copyright (c) 2009-2020, NTESS
 // All rights reserved.
 //
 // Portions are copyright of other developers:
@@ -29,18 +29,9 @@ using namespace SST::MemHierarchy;
 #define Debug(level, fmt, ... )
 #endif
 
-#ifndef SST_ENABLE_PREVIEW_BUILD  // inserted by script
-FlagMemBackendConvertor::FlagMemBackendConvertor(Component *comp, Params &params) :
-    MemBackendConvertor(comp,params) 
-{
-    using std::placeholders::_1;
-    using std::placeholders::_2;
-    static_cast<FlagMemBackend*>(m_backend)->setResponseHandler( std::bind( &FlagMemBackendConvertor::handleMemResponse, this, _1,_2 ) );
-}
-#endif  // inserted by script
 
 FlagMemBackendConvertor::FlagMemBackendConvertor(ComponentId_t id, Params &params, MemBackend* backend, uint32_t reqWidth) :
-    MemBackendConvertor(id, params, backend, reqWidth) 
+    MemBackendConvertor(id, params, backend, reqWidth)
 {
     using std::placeholders::_1;
     using std::placeholders::_2;
