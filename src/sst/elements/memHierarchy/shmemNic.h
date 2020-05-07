@@ -220,7 +220,7 @@ class ShmemNic : public SST::Component {
 
       public:
         MemRequestQ( ShmemNic* nic, int maxPending, int maxSrcQsize, int numSrcs ) : 
-            m_nic(nic), m_maxPending(maxPending), m_curSrc(0), m_reqSrcQs(numSrcs,maxSrcQsize)
+            m_nic(nic), m_maxPending(maxPending), m_curSrc(0), m_reqSrcQs(numSrcs,maxSrcQsize), m_pendingPair(NULL,NULL)
         {}
 
         virtual ~MemRequestQ() { }
@@ -286,8 +286,14 @@ class ShmemNic : public SST::Component {
 
             if ( ev ) {
                 ev->setDst(Nic().m_link->findTargetDestination(req->addr));
-                Nic().m_link->send(ev);
-                m_pendingReq[ ev->getID() ] = req;
+                if ( Nic().m_link->spaceToSend( ev ) ) {
+                    m_pendingMap[ req->addr ].push_back( req );
+                    m_pendingReq[ ev->getID() ] = req;
+                    Nic().m_link->send(ev);
+                } else {
+                    Nic().dbg.debug(CALL_INFO,1,DBG_MEMEVENT_FLAG,"link blocked\n");
+                    m_pendingPair = std::pair<MemRequest*,MemEventBase*>(req,ev);
+                }
             }
         }
 
@@ -370,6 +376,17 @@ class ShmemNic : public SST::Component {
         bool process( int num = 1) {
             bool worked = false;
             Nic().m_statPendingMemResp->addData( m_pendingReq.size() );
+            if ( m_pendingPair.first ) {
+                if ( Nic().m_link->spaceToSend( m_pendingPair.second ) ) {
+                    m_pendingMap[ m_pendingPair.first->addr ].push_back( m_pendingPair.first );
+                    m_pendingReq[ m_pendingPair.second->getID() ] = m_pendingPair.first;
+                    Nic().m_link->send( m_pendingPair.second );
+                    m_pendingPair.first = NULL;
+                } else {
+                    Nic().dbg.debug(CALL_INFO,1,DBG_MEMEVENT_FLAG,"link blocked\n");
+                }
+                return true;
+            }
             if ( ! m_retryQ.empty() ) {
                 auto entry = m_retryQ.front(); 
 
@@ -377,12 +394,16 @@ class ShmemNic : public SST::Component {
                 printf("%s() handle retry %" PRIx64 " \n",__func__,entry.second->addr);
 #endif
 
-                Nic().m_link->send( entry.first->getNACKedEvent() );
-                delete entry.first;
-                m_pendingReq[ entry.first->getID() ] = entry.second;
-                m_pendingMap[entry.second->addr].push_back( entry.second );
+               if ( Nic().m_link->spaceToSend( entry.first->getNACKedEvent() ) ) {
+                	m_pendingReq[ entry.first->getID() ] = entry.second;
+                	m_pendingMap[entry.second->addr].push_back( entry.second );
+                    Nic().m_link->send( entry.first->getNACKedEvent() );
+                	delete entry.first;
+                	m_retryQ.pop();
+                } else {
+                    Nic().dbg.debug(CALL_INFO,1,DBG_MEMEVENT_FLAG,"link blocked\n");
+                }
 
-                m_retryQ.pop();
                 return true;
             }
             if ( m_pendingReq.size() < m_maxPending ) {
@@ -403,10 +424,12 @@ class ShmemNic : public SST::Component {
                         }
 
                         ++m_reqSrcQs[pos].pendingCnts;
+
                         sendReq( q.front());
+#if 0
                         MemRequest* req = q.front();
-           //             printf("%d:%s() addr 0x%" PRIx64 " %s\n",Nic().m_nicId,__func__,req->addr,req->m_op == MemRequest::Read ? "Read": "Write" );
-                        m_pendingMap[q.front()->addr].push_back( q.front() );
+                        printf("%d:%s() addr 0x%" PRIx64 " %s\n",Nic().m_nicId,__func__,req->addr,req->m_op == MemRequest::Read ? "Read": "Write" );
+#endif
                         q.pop();
                         auto& w = m_reqSrcQs[pos].waiting;
                         if ( ! w.empty() ) {
@@ -429,6 +452,7 @@ class ShmemNic : public SST::Component {
         ShmemNic* m_nic;
         int m_curSrc;
         int m_maxPending;
+        std::pair<MemRequest*,MemEventBase*> m_pendingPair;
 
     };
 

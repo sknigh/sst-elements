@@ -218,7 +218,14 @@ void ShmemNic::handleTargetEvent(SST::Event* event) {
             }
 
             memcpy( m_backing.data() + ev->getAddr() - m_ioBaseAddr, ev->getPayload().data(), ev->getSize() ); 
-            m_link->send(ev->makeResponse());
+			{
+				MemEventBase* resp = ev->makeResponse();
+				if ( m_link->spaceToSend( resp ) ) {
+					m_link->send( resp );
+				} else {
+					assert(0);
+				}
+			}
             delete ev;
 
         } break;
