@@ -91,7 +91,7 @@ public:
     virtual void sendInitData(MemEventInit * ev) =0;
     virtual MemEventInit* recvInitData() =0;
     virtual void send(MemEventBase * ev) =0;
-    virtual bool spaceToSend(size_t bytes) { assert(0); }
+    virtual bool spaceToSend(MemEventBase* ev) { return true; }
 
     /*
      * Extra functions for MemLink derivatives
