@@ -35,22 +35,25 @@ namespace MemHierarchy {
 
 class PCIE_Link : public MemLinkBase {
 
-	class SelfEvent : public Event {
-	  public:
-		enum Type { OutQ, InQ } type;
-		SelfEvent( Type type ) : Event(), type( type ) {}	
-		NotSerializable( SST::MemHierarchy::PCIE_Link::SelfEvent);
-	};
 
 	class LinkEvent : public Event {
 
 	  public:
 
 		enum Type { TLP, DLLP } type;
+		enum DLLP_type { ACK, CREDIT } dllpType;
+		enum CreditType { PH, NPH, CPLH } creditType;
 
 		LinkEvent() : Event() {}
 		LinkEvent(MemEventBase* ev, size_t pktLen) : Event(), memEventBase(ev), pktLen(pktLen), type( TLP ) {}
-		LinkEvent( Type type, size_t pktLen ) : Event(), type(type), pktLen(pktLen) {}
+		LinkEvent( size_t pktLen ) : Event(), type(TLP), pktLen(pktLen) {}
+
+		LinkEvent( DLLP_type dllpType, size_t pktLen ) : Event(), type(DLLP), dllpType(ACK), pktLen(pktLen)  {}
+
+		LinkEvent( CreditType type, int hdrCredit, int dataCredit, size_t pktLen ) :
+			Event(), type(DLLP), dllpType(CREDIT),
+			creditType(type), hdrCredit(hdrCredit), dataCredit(dataCredit), pktLen(pktLen) {}
+
 #if 0
 		LinkEvent(const LinkEvent* me) : Event() { copy( *this, *me ); }
     	LinkEvent(const LinkEvent& me) : Event() { copy( *this, me ); }
@@ -58,6 +61,8 @@ class PCIE_Link : public MemLinkBase {
 
 		MemEventBase* memEventBase;
 		size_t pktLen;
+		int hdrCredit;
+		int dataCredit;
 
       private:
 
@@ -79,6 +84,13 @@ class PCIE_Link : public MemLinkBase {
 #endif
 
 		NotSerializable( SST::MemHierarchy::PCIE_Link::LinkEvent);
+	};
+
+	class SelfEvent : public Event {
+	  public:
+		enum Type { OutQ, InQ } type;
+		SelfEvent( Type type ) : Event(), type( type ) {}
+		NotSerializable( SST::MemHierarchy::PCIE_Link::SelfEvent);
 	};
 
 public:
@@ -116,12 +128,42 @@ public:
     /* Send and receive functions for MemLink */
     void sendInitData(MemEventInit * ev) {};
     MemEventInit* recvInitData( ) { return NULL; }
+    MemEventBase * recv() { return NULL; }
 
-    MemEventBase * recv() { return NULL;}
+    void init(unsigned int phase) {}
+    void setup() {}
+	void finish() {
+		printf("%s tlpOutQmax=%d dllpOutQmax=%d\n",getName().c_str(),m_tlpOutQmax,m_dllpOutQmax);
+	}
 
-    /* Initialization and finish */
-    void init(unsigned int phase);
-    void setup();
+	bool spaceToSend(MemEventBase* ev) {
+		if ( m_useNack ) return true;
+		else return checkSpaceToSend( ev );
+	}
+
+	bool checkSpaceToSend( MemEventBase* ev ) {
+		auto* me = static_cast<MemEvent*>(ev);
+		switch ( me->getCmd() ) {
+			case Command::GetX: // write non-cacheable
+			case Command::PrWrite:
+				return m_numHdrCredits[TX][P] > 0 && m_numDataCredits[TX][P] >= me->getPayload().size()/4;
+
+			case Command::GetS: // read non-cacheable
+			case Command::PrRead:
+				return m_numHdrCredits[TX][NP] > 0;
+
+			case Command::GetXResp: // PrWrite or GetX  Resp
+				return  true;
+
+			case Command::GetSResp: // PrRead or GetS  Resp
+				return m_numHdrCredits[TX][CPL] > 0 && m_numDataCredits[TX][CPL] >= me->getPayload().size()/4;
+
+			default:
+				 m_dbg.output( "(%s) Received: '%s'\n", getName().c_str(), ev->getBriefString().c_str());
+				assert(0);
+		}
+		return false;
+	}
 
 private:
 	void handleEvent(SST::Event *ev);
@@ -129,7 +171,208 @@ private:
 	void recvPkt( LinkEvent* le );
 	void pushLinkEvent( LinkEvent* le );
 
+	void updateCredits( MemEventBase* meb ) {
+		int hdrCredit = calcHdrCredit(meb);
+		int dataCredit = calcDataCredit(meb);
+		switch ( getCreditType( meb ) ) {
+		  case LinkEvent::CreditType::PH:
+				break;
+		  case LinkEvent::CreditType::NPH:
+				break;
+		  case LinkEvent::CreditType::CPLH:
+				break;
+		}
+	}
+
+	int calcHdrCredit(MemEventBase* meb) {
+		auto* me = static_cast<MemEvent*>(meb);
+		switch ( me->getCmd() ) {
+			case Command::GetX: // write non-cacheable
+			case Command::PrWrite:
+				return 1;
+
+			case Command::GetS: // read non-cacheable
+			case Command::PrRead:
+				return 1;
+
+			case Command::GetSResp: // PrRead or GetS  Resp
+				return 1;
+
+			default:
+				assert(0);
+		}
+	}
+
+	int calcDataCredit(MemEventBase* meb) {
+		auto* me = static_cast<MemEvent*>(meb);
+		switch ( me->getCmd() ) {
+			case Command::GetX: // write non-cacheable
+			case Command::PrWrite:
+				return me->getPayload().size()/4;
+
+			case Command::GetS: // read non-cacheable
+			case Command::PrRead:
+				return 0;
+
+			case Command::GetSResp: // PrRead or GetS  Resp
+				return me->getPayload().size()/4;
+
+			default:
+				assert(0);
+		}
+	}
+
+	LinkEvent::CreditType getCreditType(MemEventBase* meb) {
+		auto* me = static_cast<MemEvent*>(meb);
+		switch ( me->getCmd() ) {
+			case Command::GetX: // write non-cacheable
+			case Command::PrWrite:
+				return LinkEvent::CreditType::PH;
+
+			case Command::GetS: // read non-cacheable
+			case Command::PrRead:
+				return LinkEvent::CreditType::NPH;
+
+			case Command::GetSResp: // PrRead or GetS  Resp
+				return LinkEvent::CreditType::CPLH;
+
+			default:
+				assert(0);
+		}
+	}
+
+	void addTxCredits(LinkEvent* le) {
+		addCredits( le->creditType, le->hdrCredit, le->dataCredit, "TX", m_numHdrCredits[TX], m_numDataCredits[TX], m_maxHdrCredits, m_maxDataCredits );
+	}
+
+	void addRxCredits(MemEvent* me ) {
+		addCredits( getCreditType( me ), calcHdrCredit( me ), calcDataCredit( me ),
+		"RX", m_numHdrCredits[RX], m_numDataCredits[RX], m_maxHdrCredits, m_maxDataCredits );
+	}
+
+	void addCredits( LinkEvent::CreditType creditType, uint32_t hdrCredit, uint32_t dataCredit, std::string type, 
+			std::vector<uint32_t>& hdrV, std::vector<uint32_t>& dataV, uint32_t maxHdr, uint32_t maxData ) 
+	{
+		uint32_t* hdr;
+		uint32_t* data;
+		switch ( creditType ) {
+			case LinkEvent::CreditType::PH:
+				hdr = &hdrV[P];
+			    data = &dataV[P];
+				type += " P";
+				break;
+
+			case LinkEvent::CreditType::NPH:
+				hdr = &hdrV[NP];
+			    data = &dataV[NP];
+				type += " NP";
+				break;
+
+			case LinkEvent::CreditType::CPLH:
+				hdr = &hdrV[CPL];
+			    data = &dataV[CPL];
+				type += " CPL";
+				break;
+		}
+		m_dbg.debug(CALL_INFO,1,0,"%s PH %d add %d\n" , type.c_str(), *hdr, hdrCredit );
+		*hdr += hdrCredit;
+		assert( *hdr <= maxHdr);
+		m_dbg.debug(CALL_INFO,1,0,"%s PD %d add %d\n", type.c_str(), *data, dataCredit );
+		*data += dataCredit;
+		assert( *data <= maxData );
+	}
+
+	void resetCredits( int x, int y ) {
+		m_numHdrCredits[x][y] = 0;
+		m_numDataCredits[x][y] = 0;
+	}
+
+	void consumeTxCredits(MemEventBase* ev) {
+		consumeCredits( ev, "TX", m_numHdrCredits[TX], m_numDataCredits[TX] );
+	}
+
+	void consumeCredits( MemEventBase* ev, std::string type, std::vector<uint32_t>& hdrV, std::vector<uint32_t>& dataV ) {
+		uint32_t hdrValue;
+		uint32_t dataValue;
+		uint32_t* hdr;
+		uint32_t* data;
+		auto* me = static_cast<MemEvent*>(ev);
+		switch ( me->getCmd() ) {
+			case Command::GetX: // write non-cacheable
+			case Command::PrWrite:
+
+				hdr = &hdrV[P];
+				data = &dataV[P];
+				hdrValue = 1;
+				dataValue = me->getPayload().size()/4;
+				type += " Posted";
+				break;
+
+			case Command::GetS: // read non-cacheable
+			case Command::PrRead:
+				hdr = &hdrV[NP];
+				data = &dataV[NP];
+				hdrValue = 1;
+				dataValue = 0;
+				type += " NonPosted";
+				break;
+
+			case Command::GetSResp: // PrRead or GetS  Resp
+
+				hdr = &hdrV[CPL];
+				data = &dataV[CPL];
+				hdrValue = 1;
+				dataValue = me->getPayload().size()/4;
+				type += " Compl";
+				break;
+
+			default:
+				assert(0);
+		}
+		assert( *hdr - 1 >= 0);
+		*hdr -= hdrValue;
+		assert( *data - dataValue >= 0 );
+		*data -= dataValue;
+
+		m_dbg.debug(CALL_INFO,1,0,"%s hdr %d data %d\n" , type.c_str(), *hdr, *data );
+		//printf("%s() %s hdr %d data %d\n" , __func__, type.c_str(), *hdr, *data );
+	}
 	
+	enum RequestType { Write, Read, ReadResp, WriteResp };
+
+	RequestType getRequestType( MemEvent* ev ) {
+
+		switch ( ev->getCmd() ) {
+
+			case Command::GetX: // write non-cacheable
+			case Command::PrWrite:
+				return Write ;
+
+			case Command::GetS: // read non-cacheable
+			case Command::PrRead:
+				return Read;
+
+			case Command::GetXResp: // PrWrite or GetX  Resp
+				return WriteResp;
+
+			case Command::GetSResp: // PrRead or GetS  Resp
+				return ReadResp;
+
+			default:
+				assert(0);
+		}
+	}
+
+	bool isResp( MemEvent* ev ) {
+		switch ( ev->getCmd() ) {
+			case Command::GetXResp: // PrWrite or GetX  Resp
+			case Command::GetSResp: // PrRead or GetS  Resp
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	size_t calcPktLength( MemEventBase* ev) {
 		auto* me = static_cast<MemEvent*>(ev);
 		switch ( ev->getCmd() ) {
@@ -163,23 +406,44 @@ private:
 	uint32_t m_linkWidthBytes;
 	SimTime_t m_latPerByte_ps;
 
+	uint32_t m_maxMtuLength;
+
 	uint32_t m_tlpHdrLength;
 	uint32_t m_tlpSeqLength;
 	uint32_t m_lcrcLength;
 	uint32_t m_dllpHdrLength;
 	
-	uint32_t m_fc_numPH;
-	uint32_t m_fc_numPD;
-	uint32_t m_fc_numNPH;
-	uint32_t m_fc_numNPD;
-	uint32_t m_fc_numCPLH;
-	uint32_t m_fc_numCPLD;
+	enum { P, NP, CPL };
+	enum { TX, RX };
+
+	std::vector< std::vector<uint32_t> > m_numHdrCredits;
+	std::vector< std::vector<uint32_t> > m_numDataCredits;
+	uint32_t m_maxHdrCredits;
+	uint32_t m_maxDataCredits;
+
 	Output m_dbg;
 	Link* m_link;
 	Link* m_selfLink;
 	std::map<Event::id_type, MemEventBase*> m_req;
-	std::queue<LinkEvent*> m_outQ;
+
+	std::queue<LinkEvent*> m_tlpOutQ;
+	std::queue<LinkEvent*> m_dllpFcOutQ;
+	std::queue<LinkEvent*> m_dllpAckOutQ;
+
 	std::queue<LinkEvent*> m_inQ;
+
+	std::queue<MemEvent*> m_nackEventQ;
+
+	int m_tlpOutQmax;
+	int m_dllpOutQmax;
+
+	bool m_linkIdle;
+	bool m_useNack;
+	double m_creditThreshold;
+
+	SimTime_t m_oldestAck;
+	SimTime_t m_ackTimeout;
+
 };
 
 } //namespace memHierarchy
