@@ -21,7 +21,7 @@
 
 using namespace SST::MemHierarchy;
 
-PCIE_Root::PCIE_Root(ComponentId_t id, Params &params) : Component(id)
+PCIE_Root::PCIE_Root(ComponentId_t id, Params &params) : Component(id), m_maxToCpu(0), m_maxToDev(0), m_numDropped(0),m_numPrWrites(0), m_numPrReads(0)
 {
 
     // Output for debug
@@ -64,20 +64,15 @@ PCIE_Root::PCIE_Root(ComponentId_t id, Params &params) : Component(id)
         }
     }
 
-
 	Params linkParams = params.find_prefix_params("pcilink.");
-//    m_pciLink = loadAnonymousSubComponent<MemLinkBase>("memHierarchy.PCI_Link", "pcilink", 0, ComponentInfo::SHARE_PORTS | ComponentInfo::INSERT_STATS, linkParams);
     m_pciLink = loadUserSubComponent<MemLinkBase>("pcilink");
     m_pciLink->setRecvHandler( new Event::Handler<PCIE_Root>(this, &PCIE_Root::handlePCI_linkEvent));
-
 
 	m_ioBaseAddr = params.find<uint64_t>( "addr_range_start", 0x100000000 );
 	m_ioLength = params.find<size_t>( "addr_range_length", 0x100000000 );
 
     m_region.start = m_ioBaseAddr;
     m_region.end = m_ioBaseAddr + m_ioLength;
-printf("%" PRIx64 "\n", m_region.start);
-printf("%" PRIx64 "\n", m_region.end);
     m_region.interleaveSize = 0;
     m_region.interleaveStep = 0;
 	m_memLink->setRegion(m_region);
@@ -94,28 +89,95 @@ printf("%" PRIx64 "\n", m_region.end);
 
 void PCIE_Root::handleTargetEvent(SST::Event* event) {
 
-    MemEventBase *meb = static_cast<MemEventBase*>(event);
-    Command cmd = meb->getCmd();
-    dbg.debug( CALL_INFO,1,0,"(%s) Received: '%s'\n", getName().c_str(), meb->getBriefString().c_str());
+    MemEvent *me = static_cast<MemEvent*>(event);
+
+    dbg.debug( CALL_INFO,1,0,"(%s) Received on memLink: '%s'\n", getName().c_str(), me->getBriefString().c_str());
 	
-	m_pciLink->send( meb );
+	if ( me->isResponse() ) {
+        try {
+            auto& q = m_pendingMap.at(me->getAddr());
+            auto iter = q.begin();
+            int pos = 0;
+            for ( ; iter != q.end(); ++iter ) {
+                if ( *iter == me->getID() ) {
+                    q.erase(iter);
+                    break;
+                }
+                ++pos;
+            }
+            dbg.debug( CALL_INFO,1,0,"pos=%d\n",pos);
+
+            if ( me->getCmd() ==  Command::NACK ) {
+                MemEvent* orig =  me->getNACKedEvent();
+                if ( Command::GetS == orig->getCmd() || Command::PrRead == orig->getCmd() || q.size() == pos ) { 
+                    dbg.debug( CALL_INFO,1,0,"(%s) Resend on memLink: '%s'\n", getName().c_str(), orig->getBriefString().c_str());
+                    q.push_back( orig->getID() );
+                    m_toCpuEventQ.push( orig );
+                } else {
+                    ++m_numDropped;
+                    dbg.debug(CALL_INFO,1,0,"drop request: %s %s, %d %zu\n",  getName().c_str(), orig->getBriefString().c_str(), pos, q.size() );
+                    delete orig;
+                }
+                delete me;
+                return;
+            } else {
+                dbg.debug( CALL_INFO,1,0,"(%s) Clear: '%s'\n", getName().c_str(), me->getBriefString().c_str());
+            }
+
+            if ( q.empty() ) {
+                m_pendingMap.erase(me->getAddr());
+            }
+
+        } catch (const std::out_of_range& oor) {
+            out.fatal(CALL_INFO,-1,"Can't find request\n");
+        }
+    }
+
+    m_toDevEventQ.push(me);
 }
 
 void PCIE_Root::handlePCI_linkEvent(SST::Event* event) {
     MemEvent *me = static_cast<MemEvent*>(event);
 	if ( ! me->isResponse() ) {
-		printf("%s::%s() %#" PRIx64 "\n",getName().c_str(),__func__, me->getAddr());
 		me->setDst(m_memLink->findTargetDestination(me->getAddr()));
 		me->setSrc(getName());
+		m_pendingMap[me->getAddr()].push_back( me->getID() );
 	}
-   	dbg.debug( CALL_INFO,1,0,"(%s) Received: '%s'\n", getName().c_str(), me->getBriefString().c_str());
-	m_memLink->send( me );
+   	dbg.debug( CALL_INFO,1,0,"(%s) Send on memLink: '%s'\n", getName().c_str(), me->getBriefString().c_str());
+	switch ( me->getCmd() ) {
+		case Command::PrWrite:
+			++m_numPrWrites;
+			break;
+		case Command::PrRead:
+			++m_numPrReads;
+			break;
+		default:
+			break;
+	}
+
+	m_toCpuEventQ.push( me );
 }
 
 bool PCIE_Root::clock(Cycle_t cycle) {
 
     bool unclock = m_pciLink->clock();
     unclock = m_memLink->clock();
+
+	if ( m_toCpuEventQ.size() > m_maxToCpu ) {
+		++m_maxToCpu;
+	}
+	if ( m_toDevEventQ.size() > m_maxToDev ) {
+		++m_maxToDev;
+	}
+	if ( ! m_toCpuEventQ.empty() ) {
+		m_memLink->send( m_toCpuEventQ.front() );
+		m_toCpuEventQ.pop();
+	}
+
+	if ( ! m_toDevEventQ.empty() && m_pciLink->spaceToSend( m_toDevEventQ.front() ) ) {
+		m_pciLink->send( m_toDevEventQ.front() );
+		m_toDevEventQ.pop();
+	}
 
     return false;
 }

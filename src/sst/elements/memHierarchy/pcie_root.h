@@ -112,6 +112,15 @@ class PCIE_Root : public SST::Component {
 	uint64_t m_ioBaseAddr;
 	size_t m_ioLength;
 	size_t m_cacheLineSize;
+
+	std::queue<MemEventBase*> m_toCpuEventQ;
+	std::queue<MemEventBase*> m_toDevEventQ;
+	int m_maxToDev;
+	int m_maxToCpu;
+	std::map< Addr, std::list<Event::id_type> > m_pendingMap;
+	int m_numDropped;
+	int m_numPrWrites;
+	int m_numPrReads;
 };
 
 }
