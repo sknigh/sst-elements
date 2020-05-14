@@ -42,6 +42,11 @@ class PCIE_Root : public SST::Component {
             {"cache_link",  "Link to Memory Controller", { "memHierarchy.memEvent" , "" } }, \
 
     SST_ELI_DOCUMENT_STATISTICS(
+        { "numReads",    "number of reads",  "count", 1 },
+        { "numWrites",   "number of writes", "count", 1 },
+        { "opRate",   "latency between sends to pci_link", "latency", 1 },
+        { "opLatencyRead",   "latency of read pci_link", "latency", 1 },
+        { "opLatencyWrite",   "latency of write pci_link", "latency", 1 },
     )
 
     SST_ELI_DOCUMENT_PORTS( MEMCONTROLLER_ELI_PORTS )
@@ -49,8 +54,12 @@ class PCIE_Root : public SST::Component {
     PCIE_Root(ComponentId_t id, Params &params);
 
     virtual void init(unsigned int);
+    void processInitEvent( MemEventInit* me );
     virtual void setup();
     void finish();
+
+	Addr translateToLocal(Addr addr);
+	Addr translateToGlobal(Addr addr);
 
   protected:
     PCIE_Root();  // for serialization only
@@ -93,9 +102,46 @@ class PCIE_Root : public SST::Component {
         std::vector<uint8_t> buf;
     };
 
+    void updateStatistics( bool isRead, SimTime_t lat ) {
+        if ( isRead ) {
+            m_opLatencyRead->addData( lat );
+        } else {
+            m_opLatencyWrite->addData( lat );
+        }
+    }
+
+	bool isRead( MemEvent* me ) {
+		dbg.debug( CALL_INFO,1,0,"%s %s %s\n",getName().c_str(),
+			me->getBriefString().c_str(), me->queryFlag(MemEvent::F_NONCACHEABLE)? "NONCACHEABLE":"CACHEABLE");
+		switch ( me->getCmd() )  {
+			case Command::PutM:
+			case Command::PrWrite:
+				return false;
+
+			case Command::GetX:
+				if ( me->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					return false;
+				} else {
+					return true;
+				}
+
+			case Command::GetS:
+			case Command::PrRead:
+				return true;
+
+			default:
+				printf("%s %s() %s\n",getName().c_str(),__func__,me->getBriefString().c_str());
+				assert(0);
+				return false;
+		}
+	}
+
     void handleTargetEvent( SST::Event* );
     void handlePCI_linkEvent( SST::Event* );
     virtual bool clock( SST::Cycle_t );
+
+	bool handleResponseFromHost( MemEvent* );
+	void handleNackFromHost( MemEvent*, bool );
 
 	MemLinkBase* m_pciLink;      // PCI Link 
 	MemLinkBase* m_memLink;      // Link to the rest of memHierarchy
@@ -109,18 +155,27 @@ class PCIE_Root : public SST::Component {
 	Output out;
 	Output dbg;
 
-	uint64_t m_ioBaseAddr;
-	size_t m_ioLength;
-	size_t m_cacheLineSize;
-
-	std::queue<MemEventBase*> m_toCpuEventQ;
+	std::queue<MemEventBase*> m_toHostEventQ;
 	std::queue<MemEventBase*> m_toDevEventQ;
-	int m_maxToDev;
-	int m_maxToCpu;
-	std::map< Addr, std::list<Event::id_type> > m_pendingMap;
-	int m_numDropped;
-	int m_numPrWrites;
-	int m_numPrReads;
+
+	std::map< Addr, std::list<Event::id_type> > m_devOriginPendingMap;
+
+    struct Entry {
+        Entry( MemEventBase* event, SimTime_t time, bool isRead ) : event(event), time(time), isRead(isRead) {}
+		MemEventBase* event;
+        SimTime_t time;
+		bool isRead;
+    };
+
+	std::map< SST::Event::id_type, Entry > m_hostOriginPendingMap;
+
+	Addr m_privateMemOffset;
+
+	Statistic<uint64_t>* m_opRate;
+	SimTime_t 			 m_lastSend;
+
+    Statistic<uint64_t>* m_opLatencyRead;
+    Statistic<uint64_t>* m_opLatencyWrite;
 };
 
 }

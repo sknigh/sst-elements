@@ -98,15 +98,10 @@ public:
     SST_ELI_REGISTER_SUBCOMPONENT_DERIVED(PCIE_Link, "memHierarchy", "PCIE_Link", SST_ELI_ELEMENT_VERSION(1,0,0),
             "", SST::MemHierarchy::MemLinkBase)
 
-   	SST_ELI_DOCUMENT_PARAMS( )
+   	SST_ELI_DOCUMENT_PARAMS()
 
     SST_ELI_DOCUMENT_STATISTICS()
 
-    SST_ELI_DOCUMENT_SUBCOMPONENT_SLOTS(
-#if 0
-            {"ack", "Link control subcomponent to acknowledgement network", "SST::Interfaces::SimpleNetwork"},
-#endif
-	)
 
 /* Begin class definition */    
 
@@ -129,6 +124,7 @@ public:
     void sendInitData(MemEventInit * ev) {};
     MemEventInit* recvInitData( ) { return NULL; }
     MemEventBase * recv() { return NULL; }
+	bool isClocked() { return true; }
 
     void init(unsigned int phase) {}
     void setup() {}
@@ -137,39 +133,54 @@ public:
 	}
 
 	bool spaceToSend(MemEventBase* ev) {
-		if ( m_useNack ) return true;
-		else return checkSpaceToSend( ev );
-	}
-
-	bool checkSpaceToSend( MemEventBase* ev ) {
+		bool retval;
 		auto* me = static_cast<MemEvent*>(ev);
 		switch ( me->getCmd() ) {
-			case Command::GetX: // write non-cacheable
+			case Command::PutM:
 			case Command::PrWrite:
-				return m_numHdrCredits[TX][P] > 0 && m_numDataCredits[TX][P] >= me->getPayload().size()/4;
+				retval = m_numHdrCredits[TX][P] > 0 && m_numDataCredits[TX][P] >= me->getPayload().size()/4;
+				break;
 
-			case Command::GetS: // read non-cacheable
+			case Command::GetX:
+				if ( ev->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					retval = m_numHdrCredits[TX][P] > 0 && m_numDataCredits[TX][P] >= me->getPayload().size()/4;
+				} else {
+					retval = m_numHdrCredits[TX][NP] > 0;
+				}
+				break;
+
+			case Command::GetS:
 			case Command::PrRead:
-				return m_numHdrCredits[TX][NP] > 0;
+				retval = m_numHdrCredits[TX][NP] > 0;
+				break;
 
-			case Command::GetXResp: // PrWrite or GetX  Resp
-				return  true;
+			case Command::GetXResp:
+				if ( ev->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					retval = false;
+				} else {
+					retval = m_numHdrCredits[TX][CPL] > 0 && m_numDataCredits[TX][CPL] >= me->getPayload().size()/4;
+				}
+				break;
 
-			case Command::GetSResp: // PrRead or GetS  Resp
-				return m_numHdrCredits[TX][CPL] > 0 && m_numDataCredits[TX][CPL] >= me->getPayload().size()/4;
+			case Command::GetSResp:
+				retval = m_numHdrCredits[TX][CPL] > 0 && m_numDataCredits[TX][CPL] >= me->getPayload().size()/4;
+				break;
 
 			default:
 				 m_dbg.output( "(%s) Received: '%s'\n", getName().c_str(), ev->getBriefString().c_str());
 				assert(0);
 		}
-		return false;
+
+		m_dbg.debug(CALL_INFO,1,0,"%s %s %s\n", getName().c_str(), ev->getBriefString().c_str(), retval ? "have space":" no space" );
+		return retval;
 	}
+	size_t getMtuLength() { return m_mtuLength; }
 
 private:
-	void handleEvent(SST::Event *ev);
-	void selfLinkHandler(Event* ev);
-	void recvPkt( LinkEvent* le );
-	void pushLinkEvent( LinkEvent* le );
+	void handleEvent( SST::Event* );
+	void selfLinkHandler( Event* );
+	void recvPkt( LinkEvent* );
+	void pushLinkEvent( LinkEvent* );
 
 	void updateCredits( MemEventBase* meb ) {
 		int hdrCredit = calcHdrCredit(meb);
@@ -187,15 +198,13 @@ private:
 	int calcHdrCredit(MemEventBase* meb) {
 		auto* me = static_cast<MemEvent*>(meb);
 		switch ( me->getCmd() ) {
-			case Command::GetX: // write non-cacheable
+			case Command::PutM:
+			case Command::GetX:
 			case Command::PrWrite:
-				return 1;
-
-			case Command::GetS: // read non-cacheable
+			case Command::GetS:
 			case Command::PrRead:
-				return 1;
-
-			case Command::GetSResp: // PrRead or GetS  Resp
+			case Command::GetSResp:
+			case Command::GetXResp:
 				return 1;
 
 			default:
@@ -206,15 +215,23 @@ private:
 	int calcDataCredit(MemEventBase* meb) {
 		auto* me = static_cast<MemEvent*>(meb);
 		switch ( me->getCmd() ) {
-			case Command::GetX: // write non-cacheable
+			case Command::PutM:
 			case Command::PrWrite:
 				return me->getPayload().size()/4;
 
-			case Command::GetS: // read non-cacheable
+			case Command::GetX:
+				if ( me->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					return me->getPayload().size()/4;
+				} else {
+					return 0;
+				}
+
+			case Command::GetS:
 			case Command::PrRead:
 				return 0;
 
-			case Command::GetSResp: // PrRead or GetS  Resp
+			case Command::GetSResp:
+			case Command::GetXResp:
 				return me->getPayload().size()/4;
 
 			default:
@@ -225,15 +242,23 @@ private:
 	LinkEvent::CreditType getCreditType(MemEventBase* meb) {
 		auto* me = static_cast<MemEvent*>(meb);
 		switch ( me->getCmd() ) {
-			case Command::GetX: // write non-cacheable
+			case Command::PutM:
 			case Command::PrWrite:
 				return LinkEvent::CreditType::PH;
 
-			case Command::GetS: // read non-cacheable
+			case Command::GetX:
+				if ( me->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					return LinkEvent::CreditType::PH;
+				} else {
+					return LinkEvent::CreditType::NPH;
+				}
+
+			case Command::GetS:
 			case Command::PrRead:
 				return LinkEvent::CreditType::NPH;
 
-			case Command::GetSResp: // PrRead or GetS  Resp
+			case Command::GetSResp:
+			case Command::GetXResp:
 				return LinkEvent::CreditType::CPLH;
 
 			default:
@@ -298,8 +323,8 @@ private:
 		uint32_t* data;
 		auto* me = static_cast<MemEvent*>(ev);
 		switch ( me->getCmd() ) {
-			case Command::GetX: // write non-cacheable
 			case Command::PrWrite:
+			case Command::PutM:
 
 				hdr = &hdrV[P];
 				data = &dataV[P];
@@ -308,7 +333,23 @@ private:
 				type += " Posted";
 				break;
 
-			case Command::GetS: // read non-cacheable
+			case Command::GetX:
+				if ( ev->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					hdr = &hdrV[P];
+					data = &dataV[P];
+					hdrValue = 1;
+					dataValue = me->getPayload().size()/4;
+					type += " Posted";
+				} else {
+					hdr = &hdrV[NP];
+					data = &dataV[NP];
+					hdrValue = 1;
+					dataValue = 0;
+					type += " NonPosted";
+				}
+				break;
+
+			case Command::GetS:
 			case Command::PrRead:
 				hdr = &hdrV[NP];
 				data = &dataV[NP];
@@ -317,7 +358,8 @@ private:
 				type += " NonPosted";
 				break;
 
-			case Command::GetSResp: // PrRead or GetS  Resp
+			case Command::GetSResp:
+			case Command::GetXResp:
 
 				hdr = &hdrV[CPL];
 				data = &dataV[CPL];
@@ -335,65 +377,77 @@ private:
 		*data -= dataValue;
 
 		m_dbg.debug(CALL_INFO,1,0,"%s hdr %d data %d\n" , type.c_str(), *hdr, *data );
-		//printf("%s() %s hdr %d data %d\n" , __func__, type.c_str(), *hdr, *data );
 	}
 	
-	enum RequestType { Write, Read, ReadResp, WriteResp };
+    bool isRead( MemEvent* me ) {
+        dbg.debug( CALL_INFO,1,0,"%s %s %s\n",getName().c_str(),
+            me->getBriefString().c_str(), me->queryFlag(MemEvent::F_NONCACHEABLE)? "NONCACHEABLE":"CACHEABLE");
+        switch ( me->getCmd() )  {
+            case Command::GetX:
+                if ( me->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+                    return false;
+                } else {
+                    return true;
+                }
 
-	RequestType getRequestType( MemEvent* ev ) {
+            case Command::GetS:
+            case Command::PrRead:
+                return true;
 
-		switch ( ev->getCmd() ) {
-
-			case Command::GetX: // write non-cacheable
-			case Command::PrWrite:
-				return Write ;
-
-			case Command::GetS: // read non-cacheable
-			case Command::PrRead:
-				return Read;
-
-			case Command::GetXResp: // PrWrite or GetX  Resp
-				return WriteResp;
-
-			case Command::GetSResp: // PrRead or GetS  Resp
-				return ReadResp;
-
-			default:
-				assert(0);
-		}
-	}
-
-	bool isResp( MemEvent* ev ) {
-		switch ( ev->getCmd() ) {
-			case Command::GetXResp: // PrWrite or GetX  Resp
-			case Command::GetSResp: // PrRead or GetS  Resp
-				return true;
-			default:
-				return false;
-		}
-	}
+            default:
+                printf("%s %s() %s\n",getName().c_str(),__func__,me->getBriefString().c_str());
+                assert(0);
+                return false;
+        }
+    }
 
 	size_t calcPktLength( MemEventBase* ev) {
 		auto* me = static_cast<MemEvent*>(ev);
+		size_t len;
 		switch ( ev->getCmd() ) {
-			case Command::GetX: // write non-cacheable
+			case Command::PutM:
 			case Command::PrWrite:
-				return  m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + me->getPayload().size() + m_lcrcLength;
+				len = m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + me->getPayload().size() + m_lcrcLength;
+				break;
+
+			case Command::GetX:
+                if ( me->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					len = m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + me->getPayload().size() + m_lcrcLength;
+				} else {
+					len = m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + m_lcrcLength;
+				}
+				break;
 
 			case Command::GetS: // read non-cacheable
 			case Command::PrRead:
-				return  m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + m_lcrcLength;
+				len = m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + m_lcrcLength;
+				break;
 
 			case Command::GetXResp: // PrWrite or GetX  Resp
-				return  m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + m_lcrcLength;
+                if ( me->queryFlag(MemEvent::F_NONCACHEABLE) ) {
+					len = m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + m_lcrcLength;
+				} else {
+					len = m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + me->getPayload().size() + m_lcrcLength;
+				}
+				break;
 
 			case Command::GetSResp: // PrRead or GetS  Resp
-				return  m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + me->getPayload().size() + m_lcrcLength;
+				len = m_dllpHdrLength + m_tlpSeqLength + m_tlpHdrLength + me->getPayload().size() + m_lcrcLength;
+				break;
 
 			default:
 				assert(0);
 		}
-		return 16;
+#if 1
+        printf("%s %s() %zu %zu %s %s\n",
+			getName().c_str(),
+			__func__,
+			len,
+			me->getPayload().size(),
+			me->getBriefString().c_str(),
+			me->queryFlag(MemEvent::F_NONCACHEABLE)?"NONCACHE":"CACHE");
+#endif
+		return len;
 	}
 
 	SimTime_t calcNumClocks(size_t length ) {
@@ -402,6 +456,7 @@ private:
 				length, m_linkWidthBytes, clocks, clocks * m_latPerByte_ps);
 		return clocks; 
 	}
+
 
 	uint32_t m_linkWidthBytes;
 	SimTime_t m_latPerByte_ps;
@@ -438,12 +493,11 @@ private:
 	int m_dllpOutQmax;
 
 	bool m_linkIdle;
-	bool m_useNack;
 	double m_creditThreshold;
 
 	SimTime_t m_oldestAck;
 	SimTime_t m_ackTimeout;
-
+	size_t m_mtuLength;
 };
 
 } //namespace memHierarchy
