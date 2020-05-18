@@ -42,8 +42,8 @@ class PCIE_Root : public SST::Component {
             {"cache_link",  "Link to Memory Controller", { "memHierarchy.memEvent" , "" } }, \
 
     SST_ELI_DOCUMENT_STATISTICS(
-        { "numReads",    "number of reads",  "count", 1 },
-        { "numWrites",   "number of writes", "count", 1 },
+        { "bytesRead",    "bytes read",  "count", 1 },
+        { "bytesWritten",   "bytes written", "count", 1 },
         { "opRate",   "latency between sends to pci_link", "latency", 1 },
         { "opLatencyRead",   "latency of read pci_link", "latency", 1 },
         { "opLatencyWrite",   "latency of write pci_link", "latency", 1 },
@@ -173,6 +173,9 @@ class PCIE_Root : public SST::Component {
 
 	Statistic<uint64_t>* m_opRate;
 	SimTime_t 			 m_lastSend;
+
+    Statistic<uint64_t>* m_bytesRead;
+    Statistic<uint64_t>* m_bytesWritten;
 
     Statistic<uint64_t>* m_opLatencyRead;
     Statistic<uint64_t>* m_opLatencyWrite;

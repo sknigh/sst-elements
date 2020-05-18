@@ -114,8 +114,10 @@ PCIE_Root::PCIE_Root(ComponentId_t id, Params &params) : Component(id), m_privat
     m_clockTC = registerClock( clockFreq, m_clockHandler );
 
     m_opRate = registerStatistic<uint64_t>("opRate");
-	m_opLatencyRead = registerStatistic<uint64_t>("opLatencyRead");
+    m_opLatencyRead = registerStatistic<uint64_t>("opLatencyRead");
     m_opLatencyWrite = registerStatistic<uint64_t>("opLatencyWrite");
+    m_bytesRead = registerStatistic<uint64_t>("bytesRead");
+    m_bytesWritten = registerStatistic<uint64_t>("bytesWritten");
 }
 
 void PCIE_Root::handleTargetEvent(SST::Event* event) {
@@ -218,6 +220,7 @@ bool PCIE_Root::clock(Cycle_t cycle)
             ev->setAddr(translateToGlobal(ev->getAddr()));
         }
 
+        dbg.debug( CALL_INFO,1,0,"(%s) Send on memLink: '%s'\n", getName().c_str(), m_toHostEventQ.front()->getBriefString().c_str());
 		m_memLink->send( m_toHostEventQ.front() );
 		m_toHostEventQ.pop();
 	}
@@ -232,7 +235,12 @@ bool PCIE_Root::clock(Cycle_t cycle)
 
 		m_opRate->addData( now - m_lastSend );
 		m_lastSend = now;
-	}
+        if ( isRead(static_cast<MemEvent*>(ev)) ) { 
+            m_bytesRead->addData( static_cast<MemEvent*>(ev)->getPayload().size() );
+        } else {
+            m_bytesWritten->addData( static_cast<MemEvent*>(ev)->getPayload().size() );
+        }
+    }
 
     return false;
 }
