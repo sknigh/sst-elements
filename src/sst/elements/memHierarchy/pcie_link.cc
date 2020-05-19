@@ -37,6 +37,7 @@ PCIE_Link::PCIE_Link(ComponentId_t id, Params &params) :  MemLinkBase(id, params
 	m_link = configureLink("link", new Event::Handler<PCIE_Link>(this, &PCIE_Link::handleEvent));
 	assert(m_link);
 
+
 	m_linkWidthBytes = params.find<int>("linkWidthInBytes", 1 );
     UnitAlgebra link_bw = params.find<UnitAlgebra>("linkBandwidth", "1GB/s");
     if ( !link_bw.hasUnits("B/s") ) {
@@ -48,11 +49,23 @@ PCIE_Link::PCIE_Link(ComponentId_t id, Params &params) :  MemLinkBase(id, params
 	m_selfLink = configureSelfLink( getName() + "selfLink", getTimeConverter(link_clock), 
                                               new Event::Handler<PCIE_Link>(this,&PCIE_Link::selfLinkHandler));
 
+	m_inDelayLink = configureSelfLink( getName() + "inDelayLink", "1ns", 
+                                              new Event::Handler<PCIE_Link>(this,&PCIE_Link::handleSendSideLat));
+	assert( m_inDelayLink );
+	m_outDelayLink = configureSelfLink( getName() + "outDelayLink", getTimeConverter(link_clock), 
+                                              new Event::Handler<PCIE_Link>(this,&PCIE_Link::handleRecvSideLat));
+	assert( m_outDelayLink );
+
 	m_link->setDefaultTimeBase(  getTimeConverter(link_clock) );
 
 	m_latPerByte_ps = m_selfLink->getDefaultTimeBase()->getFactor();
 
 	m_dbg.debug(CALL_INFO,1,1,"link BW=%s latPerByte_ps=%" PRIu64 "\n",link_bw.toString().c_str(),m_latPerByte_ps);
+
+	m_inLatencyClocks = params.find<uint64_t>("inLatency_ns",50);
+	m_outLatencyClocks = params.find<uint64_t>("outLatency_ns",50);
+
+	m_dbg.debug(CALL_INFO,0,0,"inLatencyClocks=%d  outLatencyClocks=%d\n", m_inLatencyClocks, m_outLatencyClocks );
 
 	m_creditThreshold = params.find<double>("creditThreshold",0.5);
 
@@ -144,7 +157,8 @@ void PCIE_Link::selfLinkHandler(SST::Event *ev){
 		recvPkt( m_inQ.front() );
 		m_inQ.pop();
 		if ( ! m_inQ.empty() ) {
-			SimTime_t latency = calcNumClocks(m_inQ.front()->pktLen); 
+			// first byte is here calculate how long until the rest
+			SimTime_t latency = calcNumClocks(m_inQ.front()->pktLen - 1); 
 			m_dbg.debug(CALL_INFO,1,0,"start InQ timer %" PRIu64"\n",latency);
 			m_selfLink->send( latency, new SelfEvent( SelfEvent::InQ ) );
 		}
@@ -203,10 +217,18 @@ void PCIE_Link::send(MemEventBase *ev) {
      }
 
 	consumeTxCredits(ev);
-
-	size_t length = calcPktLength( ev );
-	pushLinkEvent( new LinkEvent(ev,length) );
+	m_inDelayLink->send( m_inLatencyClocks, ev );
 }
+
+
+void PCIE_Link::handleSendSideLat( Event* event )
+{
+	MemEventBase* me = static_cast<MemEventBase*>(event);
+
+	size_t length = calcPktLength( me );
+	pushLinkEvent( new LinkEvent(me,length) );
+}
+
 
 void PCIE_Link::recvPkt( LinkEvent* le ) {
 
@@ -225,9 +247,13 @@ void PCIE_Link::recvPkt( LinkEvent* le ) {
 		delete le;
 		return;
 	}
-
-	MemEventBase* meb = le->memEventBase;
+	m_outDelayLink->send( m_outLatencyClocks, le->memEventBase );
 	delete le;
+}	
+
+void PCIE_Link::handleRecvSideLat( Event* event) {
+	MemEventBase* meb = static_cast<MemEventBase*>(event);
+
 	MemEventBase* req;
 
 	m_dbg.debug( CALL_INFO,1,0,"(%s) Received: '%s'\n", getName().c_str(), meb->getBriefString().c_str());

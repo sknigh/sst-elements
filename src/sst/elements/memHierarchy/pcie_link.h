@@ -129,7 +129,9 @@ public:
     void init(unsigned int phase) {}
     void setup() {}
 	void finish() {
+#if 0
 		printf("%s tlpOutQmax=%d dllpOutQmax=%d\n",getName().c_str(),m_tlpOutQmax,m_dllpOutQmax);
+#endif
 	}
 
 	bool spaceToSend(MemEventBase* ev) {
@@ -179,6 +181,8 @@ public:
 private:
 	void handleEvent( SST::Event* );
 	void selfLinkHandler( Event* );
+	void handleSendSideLat( Event* );
+	void handleRecvSideLat( Event* );
 	void recvPkt( LinkEvent* );
 	void pushLinkEvent( LinkEvent* );
 
@@ -482,6 +486,8 @@ private:
 	Output m_dbg;
 	Link* m_link;
 	Link* m_selfLink;
+	Link* m_inDelayLink;
+	Link* m_outDelayLink;
 	std::map<Event::id_type, MemEventBase*> m_req;
 
 	std::queue<LinkEvent*> m_tlpOutQ;
@@ -501,6 +507,9 @@ private:
 	SimTime_t m_oldestAck;
 	SimTime_t m_ackTimeout;
 	size_t m_mtuLength;
+
+	int m_outLatencyClocks;
+	int m_inLatencyClocks;
 };
 
 } //namespace memHierarchy
