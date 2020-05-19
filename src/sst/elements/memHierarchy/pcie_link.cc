@@ -157,7 +157,8 @@ void PCIE_Link::selfLinkHandler(SST::Event *ev){
 
 /* Send event to memNIC */
 void PCIE_Link::send(MemEventBase *ev) {
-	m_dbg.debug( CALL_INFO,1,0,"(%s) Received: '%s'\n", getName().c_str(), ev->getBriefString().c_str());
+	m_dbg.debug( CALL_INFO,1,0,"(%s) Received: '%s' <%llu,%d>\n", getName().c_str(), 
+			ev->getBriefString().c_str(), ev->getResponseToID().first, ev->getResponseToID().second);
 
     switch ( ev->getCmd() ) {
 
@@ -233,7 +234,7 @@ void PCIE_Link::recvPkt( LinkEvent* le ) {
 
 	if ( static_cast<MemEvent*>(meb)->isResponse() ) {
 			
-		m_dbg.debug(CALL_INFO,1,0,"process InQ response\n");
+		m_dbg.debug(CALL_INFO,1,0,"process InQ response <%llu,%d>\n",meb->getResponseToID().first, meb->getResponseToID().second);
 
 		try {
 			req = m_req.at(meb->getResponseToID());
@@ -249,7 +250,6 @@ void PCIE_Link::recvPkt( LinkEvent* le ) {
 	}
 
 	addRxCredits( static_cast<MemEvent*>(meb) );
-
 	(*recvHandler)(meb);
 }
 

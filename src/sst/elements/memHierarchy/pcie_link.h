@@ -156,7 +156,7 @@ public:
 
 			case Command::GetXResp:
 				if ( ev->queryFlag(MemEvent::F_NONCACHEABLE) ) {
-					retval = false;
+					retval = true;
 				} else {
 					retval = m_numHdrCredits[TX][CPL] > 0 && m_numDataCredits[TX][CPL] >= me->getPayload().size()/4;
 				}
@@ -393,6 +393,9 @@ private:
             case Command::GetS:
             case Command::PrRead:
                 return true;
+
+            case Command::PrWrite:
+                return false;
 
             default:
                 printf("%s %s() %s\n",getName().c_str(),__func__,me->getBriefString().c_str());
