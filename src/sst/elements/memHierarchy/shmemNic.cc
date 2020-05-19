@@ -38,7 +38,7 @@ ShmemNic::ShmemNic(ComponentId_t id, Params &params) : Component(id), m_maxLocal
     tmp =  ((tmp-1u) & ~(4096-1u)) + 4096;
     m_perPeMemSize = params.find<size_t>("perPeMemSize", tmp );
 
-    m_cacheLineSize = params.find<uint64_t>("cacheLineSize",0);
+    m_cacheLineSize = params.find<uint64_t>("cache_line_size",0);
     uint64_t hostQueueInfoBaseAddr  = params.find<uint64_t>("hostQueueInfoBaseAddr", 0 );
     size_t   hostQueueInfoSizePerPe = params.find<size_t>("hostQueueInfoSizePerPe", 64 );
 
@@ -56,8 +56,6 @@ ShmemNic::ShmemNic(ComponentId_t id, Params &params) : Component(id), m_maxLocal
     assert( shmemBaseAddr >= m_hostQueueBaseAddr + hostQueueSizePerPe * m_pesPerNode );
     assert( sizeof(NicResp) * m_respQSize <= hostQueueSizePerPe );
     assert( sizeof(NicCmd) * m_cmdQSize <= m_perPeMemSize - 64 );// last 64 bytes of this block of memory is for queue info
-
-    printf("sizeof(NicCmd)=%zu sizeof(NicResp)=%zu\n",sizeof(NicCmd),sizeof(NicResp));
 
     // Output for debug
     char buffer[100];
