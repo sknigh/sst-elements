@@ -94,12 +94,14 @@ PCIE_Root::PCIE_Root(ComponentId_t id, Params &params) : Component(id), m_privat
                 getName().c_str(), ilSize.c_str());
     }
 
+    m_privateMemOffset = addrStart;
+
     m_region.start = addrStart;
     m_region.end = addrEnd;
     m_region.interleaveSize = UnitAlgebra(ilSize).getRoundedValue();
     m_region.interleaveStep = UnitAlgebra(ilStep).getRoundedValue();
 
-	printf("%s start=%" PRIu64 " stop=%" PRIx64 " iLSize=%" PRIu64 " iLStep=%" PRIu64 "\n",getName().c_str(),
+	dbg.debug( CALL_INFO,1,0,"%s start=%" PRIu64 " stop=%" PRIx64 " iLSize=%" PRIu64 " iLStep=%" PRIu64 "\n",getName().c_str(),
 						m_region.start, m_region.end, m_region.interleaveSize, m_region.interleaveStep );
 
 	m_memLink->setRegion(m_region);
@@ -135,7 +137,9 @@ void PCIE_Root::handleTargetEvent(SST::Event* event) {
         bool last = handleResponseFromHost( me );
         if ( me->getCmd() == Command::NACK ) {
             handleNackFromHost( me, last );
-        } else {
+        } else if ( Command::GetXResp == me->getCmd() ) {
+			delete me;
+		} else {
             m_toDevEventQ.push(me);
         }
     } else {
@@ -227,18 +231,21 @@ bool PCIE_Root::clock(Cycle_t cycle)
 
 	if ( ! m_toDevEventQ.empty() && m_pciLink->spaceToSend( m_toDevEventQ.front() ) ) {
 		MemEventBase* ev = m_toDevEventQ.front();
+        dbg.debug( CALL_INFO,1,0,"(%s) send to device: '%s'\n", getName().c_str(), ev->getBriefString().c_str());
 		m_toDevEventQ.pop();
 		m_pciLink->send( ev );
 		SimTime_t now = getCurrentSimTimeNano();
 
-		m_hostOriginPendingMap.insert( std::make_pair(ev->getID(), Entry( ev, now, isRead( static_cast<MemEvent*>(ev) ) ) ) );
+        if ( ! static_cast<MemEvent*>(ev)->isResponse() ) {
+            m_hostOriginPendingMap.insert( std::make_pair(ev->getID(), Entry( ev, now, isRead( static_cast<MemEvent*>(ev) ) ) ) );
 
-		m_opRate->addData( now - m_lastSend );
-		m_lastSend = now;
-        if ( isRead(static_cast<MemEvent*>(ev)) ) { 
-            m_bytesRead->addData( static_cast<MemEvent*>(ev)->getPayload().size() );
-        } else {
-            m_bytesWritten->addData( static_cast<MemEvent*>(ev)->getPayload().size() );
+            m_opRate->addData( now - m_lastSend );
+            m_lastSend = now;
+            if ( isRead(static_cast<MemEvent*>(ev)) ) {
+                m_bytesRead->addData( static_cast<MemEvent*>(ev)->getPayload().size() );
+            } else {
+                m_bytesWritten->addData( static_cast<MemEvent*>(ev)->getPayload().size() );
+            }
         }
     }
 
